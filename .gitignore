@@ -1,0 +1,9 @@
+/target
+/.idea/
+/*.ll
+/call
+/control_flow
+/input
+/logic
+/out
+/print

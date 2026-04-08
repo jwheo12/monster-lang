@@ -1,0 +1,13 @@
+// Hello, World! in Monster.
+//
+// The older sample programs were folded into this one as a quick language guide:
+// - Functions and calls: define `fn add(a: i32, b: i32) -> i32 { ... }` and call `add(3, 4)`.
+// - Variables and mutation: use `let`, `let mut`, and assignment like `x = x + 1;`.
+// - Control flow: `if`, `else if`, and `while` are supported.
+// - Operators: `+ - * /`, `== != < <= > >=`, `&& || !`, and unary `-`.
+// - Builtin I/O: `print_i32(x)`, `print_bool(flag)`, `print_str("text")`, and `read_i32()`.
+
+fn main() -> i32 {
+    print_str("Hello, World!");
+    return 0;
+}

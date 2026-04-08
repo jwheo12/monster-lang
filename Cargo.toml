@@ -1,0 +1,8 @@
+[package]
+name = "monster"
+version = "0.1.0-rc1"
+edition = "2024"
+
+[[bin]]
+name = "mst"
+path = "src/main.rs"

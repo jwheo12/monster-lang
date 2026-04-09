@@ -681,6 +681,27 @@ impl Analyzer {
             },
         );
         self.functions.insert(
+            "print_ln_i32".to_string(),
+            FunctionSig {
+                params: vec![Type::I32],
+                ret_type: Type::Void,
+            },
+        );
+        self.functions.insert(
+            "print_ln_bool".to_string(),
+            FunctionSig {
+                params: vec![Type::Bool],
+                ret_type: Type::Void,
+            },
+        );
+        self.functions.insert(
+            "print_ln_str".to_string(),
+            FunctionSig {
+                params: vec![Type::Str],
+                ret_type: Type::Void,
+            },
+        );
+        self.functions.insert(
             "read_i32".to_string(),
             FunctionSig {
                 params: vec![],
@@ -929,6 +950,9 @@ mod tests {
                 print_i32(42);
                 print_bool(true);
                 print_str("Hello, World!");
+                print_ln_i32(42);
+                print_ln_bool(true);
+                print_ln_str("Hello, World!");
                 return 0;
             }
             "#,
@@ -960,7 +984,7 @@ mod tests {
             r#"
             fn main() -> i32 {
                 let x: i32 = read_i32();
-                print_i32(x);
+                print_ln_i32(x);
                 return 0;
             }
             "#,
@@ -990,7 +1014,7 @@ mod tests {
         let result = analyze_source(
             r#"
             fn log_message() -> void {
-                print_str("Hello");
+                print_ln_str("Hello");
                 return;
             }
 

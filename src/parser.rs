@@ -1026,7 +1026,7 @@ mod tests {
         let program = parse_source(
             r#"
             fn main() -> i32 {
-                print_str("Hello, World!");
+                print_ln_str("Hello, World!");
                 return 0;
             }
             "#,
@@ -1048,7 +1048,7 @@ mod tests {
         let program = parse_source(
             r#"
             fn log_message() -> void {
-                print_str("Hello");
+                print_ln_str("Hello");
                 return;
             }
             "#,

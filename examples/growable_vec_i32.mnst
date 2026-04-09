@@ -50,9 +50,9 @@ fn main() -> i32 {
     vec_i32_push(&vec, 40);
     vec_i32_push(&vec, 50);
 
-    print_i32(vec.len);
-    print_i32(vec_i32_get(vec, 0));
-    print_i32(vec_i32_get(vec, 4));
+    print_ln_i32(vec.len);
+    print_ln_i32(vec_i32_get(vec, 0));
+    print_ln_i32(vec_i32_get(vec, 4));
 
     let result: i32 = vec_i32_get(vec, 0) + vec_i32_get(vec, 4);
     vec_i32_free(vec);

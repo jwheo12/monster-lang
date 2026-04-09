@@ -22,6 +22,6 @@ fn sum_until(limit: i32) -> i32 {
 }
 
 fn main() -> i32 {
-    print_i32(sum_until(10));
+    print_ln_i32(sum_until(10));
     return sum_until(10);
 }

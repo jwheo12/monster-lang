@@ -86,6 +86,9 @@ fn emits_builtin_io_calls() {
             print_i32(x);
             print_bool(true);
             print_str("Hello, World!");
+            print_ln_i32(x);
+            print_ln_bool(true);
+            print_ln_str("Hello, World!");
             return 0;
         }
         "#,
@@ -95,9 +98,13 @@ fn emits_builtin_io_calls() {
     assert!(ir.contains("call i32 @__monster_builtin_read_i32()"));
     assert!(ir.contains("call void @__monster_builtin_print_i32(i32"));
     assert!(ir.contains("call void @__monster_builtin_print_bool(i1 1)"));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_i32(i32"));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_bool(i1 1)"));
     assert!(ir.contains("define internal void @__monster_builtin_print_str(ptr %value)"));
+    assert!(ir.contains("define internal void @__monster_builtin_print_ln_str(ptr %value)"));
     assert!(ir.contains("@.str.user.0 = private unnamed_addr constant"));
     assert!(ir.contains("call void @__monster_builtin_print_str(ptr getelementptr"));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_str(ptr getelementptr"));
 }
 
 #[test]
@@ -105,7 +112,7 @@ fn emits_void_function_and_bare_return() {
     let ir = emit_source(
         r#"
         fn log_message() -> void {
-            print_str("Hello");
+            print_ln_str("Hello");
             return;
         }
 
@@ -311,7 +318,7 @@ fn emits_array_index_assignment_and_len_builtin() {
         fn main() -> i32 {
             let mut values: [i32; 3] = [10, 20, 30];
             values[1] = 99;
-            print_i32(len(values) as i32);
+            print_ln_i32(len(values) as i32);
             return values[1];
         }
         "#,
@@ -320,7 +327,7 @@ fn emits_array_index_assignment_and_len_builtin() {
     assert!(ir.contains("getelementptr inbounds [3 x i32], ptr %values.addr.0, i64 0, i64 %idx."));
     assert!(ir.contains("store i32 99, ptr %elem.ptr."));
     assert!(ir.contains("trunc i64 3 to i32"));
-    assert!(ir.contains("call void @__monster_builtin_print_i32(i32 %cast."));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_i32(i32 %cast."));
 }
 
 #[test]

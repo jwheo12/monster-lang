@@ -28,6 +28,27 @@ pub(super) fn builtin_signatures() -> HashMap<String, FunctionSig> {
         },
     );
     sigs.insert(
+        "print_ln_i32".to_string(),
+        FunctionSig {
+            params: vec![Type::I32],
+            ret_type: Type::Void,
+        },
+    );
+    sigs.insert(
+        "print_ln_bool".to_string(),
+        FunctionSig {
+            params: vec![Type::Bool],
+            ret_type: Type::Void,
+        },
+    );
+    sigs.insert(
+        "print_ln_str".to_string(),
+        FunctionSig {
+            params: vec![Type::Str],
+            ret_type: Type::Void,
+        },
+    );
+    sigs.insert(
         "read_i32".to_string(),
         FunctionSig {
             params: vec![],
@@ -39,7 +60,9 @@ pub(super) fn builtin_signatures() -> HashMap<String, FunctionSig> {
 
 pub(super) fn emit_runtime_prelude() -> String {
     [
-        "@.fmt.print_i32 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"",
+        "@.fmt.print_i32 = private unnamed_addr constant [3 x i8] c\"%d\\00\"",
+        "@.fmt.print_ln_i32 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"",
+        "@.fmt.print_str = private unnamed_addr constant [3 x i8] c\"%s\\00\"",
         "@.fmt.scan_i32 = private unnamed_addr constant [3 x i8] c\"%d\\00\"",
         "@.str.true = private unnamed_addr constant [5 x i8] c\"true\\00\"",
         "@.str.false = private unnamed_addr constant [6 x i8] c\"false\\00\"",
@@ -52,20 +75,39 @@ pub(super) fn emit_runtime_prelude() -> String {
         "",
         "define internal void @__monster_builtin_print_i32(i32 %value) {",
         "entry:",
-        "  %call.0 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([4 x i8], ptr @.fmt.print_i32, i64 0, i64 0), i32 %value)",
+        "  %call.0 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_i32, i64 0, i64 0), i32 %value)",
+        "  ret void",
+        "}",
+        "",
+        "define internal void @__monster_builtin_print_ln_i32(i32 %value) {",
+        "entry:",
+        "  %call.1 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([4 x i8], ptr @.fmt.print_ln_i32, i64 0, i64 0), i32 %value)",
         "  ret void",
         "}",
         "",
         "define internal void @__monster_builtin_print_bool(i1 %value) {",
         "entry:",
         "  %str.0 = select i1 %value, ptr getelementptr inbounds ([5 x i8], ptr @.str.true, i64 0, i64 0), ptr getelementptr inbounds ([6 x i8], ptr @.str.false, i64 0, i64 0)",
-        "  %call.1 = call i32 @puts(ptr %str.0)",
+        "  %call.2 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_str, i64 0, i64 0), ptr %str.0)",
+        "  ret void",
+        "}",
+        "",
+        "define internal void @__monster_builtin_print_ln_bool(i1 %value) {",
+        "entry:",
+        "  %str.1 = select i1 %value, ptr getelementptr inbounds ([5 x i8], ptr @.str.true, i64 0, i64 0), ptr getelementptr inbounds ([6 x i8], ptr @.str.false, i64 0, i64 0)",
+        "  %call.3 = call i32 @puts(ptr %str.1)",
         "  ret void",
         "}",
         "",
         "define internal void @__monster_builtin_print_str(ptr %value) {",
         "entry:",
-        "  %call.3 = call i32 @puts(ptr %value)",
+        "  %call.4 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_str, i64 0, i64 0), ptr %value)",
+        "  ret void",
+        "}",
+        "",
+        "define internal void @__monster_builtin_print_ln_str(ptr %value) {",
+        "entry:",
+        "  %call.5 = call i32 @puts(ptr %value)",
         "  ret void",
         "}",
         "",
@@ -99,6 +141,9 @@ pub(super) fn llvm_function_name(name: &str) -> String {
         "print_i32" => "@__monster_builtin_print_i32".to_string(),
         "print_bool" => "@__monster_builtin_print_bool".to_string(),
         "print_str" => "@__monster_builtin_print_str".to_string(),
+        "print_ln_i32" => "@__monster_builtin_print_ln_i32".to_string(),
+        "print_ln_bool" => "@__monster_builtin_print_ln_bool".to_string(),
+        "print_ln_str" => "@__monster_builtin_print_ln_str".to_string(),
         "read_i32" => "@__monster_builtin_read_i32".to_string(),
         _ => format!("@{name}"),
     }

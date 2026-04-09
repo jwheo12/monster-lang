@@ -1,7 +1,9 @@
 ; Monster LLVM IR backend
 target triple = "x86_64-pc-linux-gnu"
 
-@.fmt.print_i32 = private unnamed_addr constant [4 x i8] c"%d\0A\00"
+@.fmt.print_i32 = private unnamed_addr constant [3 x i8] c"%d\00"
+@.fmt.print_ln_i32 = private unnamed_addr constant [4 x i8] c"%d\0A\00"
+@.fmt.print_str = private unnamed_addr constant [3 x i8] c"%s\00"
 @.fmt.scan_i32 = private unnamed_addr constant [3 x i8] c"%d\00"
 @.str.true = private unnamed_addr constant [5 x i8] c"true\00"
 @.str.false = private unnamed_addr constant [6 x i8] c"false\00"
@@ -14,20 +16,39 @@ declare void @exit(i32)
 
 define internal void @__monster_builtin_print_i32(i32 %value) {
 entry:
-  %call.0 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([4 x i8], ptr @.fmt.print_i32, i64 0, i64 0), i32 %value)
+  %call.0 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_i32, i64 0, i64 0), i32 %value)
+  ret void
+}
+
+define internal void @__monster_builtin_print_ln_i32(i32 %value) {
+entry:
+  %call.1 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([4 x i8], ptr @.fmt.print_ln_i32, i64 0, i64 0), i32 %value)
   ret void
 }
 
 define internal void @__monster_builtin_print_bool(i1 %value) {
 entry:
   %str.0 = select i1 %value, ptr getelementptr inbounds ([5 x i8], ptr @.str.true, i64 0, i64 0), ptr getelementptr inbounds ([6 x i8], ptr @.str.false, i64 0, i64 0)
-  %call.1 = call i32 @puts(ptr %str.0)
+  %call.2 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_str, i64 0, i64 0), ptr %str.0)
+  ret void
+}
+
+define internal void @__monster_builtin_print_ln_bool(i1 %value) {
+entry:
+  %str.1 = select i1 %value, ptr getelementptr inbounds ([5 x i8], ptr @.str.true, i64 0, i64 0), ptr getelementptr inbounds ([6 x i8], ptr @.str.false, i64 0, i64 0)
+  %call.3 = call i32 @puts(ptr %str.1)
   ret void
 }
 
 define internal void @__monster_builtin_print_str(ptr %value) {
 entry:
-  %call.3 = call i32 @puts(ptr %value)
+  %call.4 = call i32 (ptr, ...) @printf(ptr getelementptr inbounds ([3 x i8], ptr @.fmt.print_str, i64 0, i64 0), ptr %value)
+  ret void
+}
+
+define internal void @__monster_builtin_print_ln_str(ptr %value) {
+entry:
+  %call.5 = call i32 @puts(ptr %value)
   ret void
 }
 
@@ -157,13 +178,13 @@ entry:
   call void @vec_i32_push(ptr %vec.addr.0, i32 50)
   %load.1 = load %struct.VecI32, ptr %vec.addr.0
   %field.2 = extractvalue %struct.VecI32 %load.1, 1
-  call void @__monster_builtin_print_i32(i32 %field.2)
+  call void @__monster_builtin_print_ln_i32(i32 %field.2)
   %load.3 = load %struct.VecI32, ptr %vec.addr.0
   %call.4 = call i32 @vec_i32_get(%struct.VecI32 %load.3, i32 0)
-  call void @__monster_builtin_print_i32(i32 %call.4)
+  call void @__monster_builtin_print_ln_i32(i32 %call.4)
   %load.5 = load %struct.VecI32, ptr %vec.addr.0
   %call.6 = call i32 @vec_i32_get(%struct.VecI32 %load.5, i32 4)
-  call void @__monster_builtin_print_i32(i32 %call.6)
+  call void @__monster_builtin_print_ln_i32(i32 %call.6)
   %load.7 = load %struct.VecI32, ptr %vec.addr.0
   %call.8 = call i32 @vec_i32_get(%struct.VecI32 %load.7, i32 0)
   %load.9 = load %struct.VecI32, ptr %vec.addr.0

@@ -156,14 +156,16 @@ Supported language features:
 - arithmetic operators: `+ - * /`
 - comparison operators: `== != < <= > >=`
 - string literals
-- builtins: `print_i32`, `print_bool`, `print_str`, `read_i32`, `len`
+- builtins: `print_i32`, `print_bool`, `print_str`, `print_ln_i32`, `print_ln_bool`, `print_ln_str`, `read_i32`, `len`
 - explicit casts with `as`
+
+`print_*` writes without a trailing newline, while `print_ln_*` appends one.
 
 ## Example
 
 ```mnst
 fn main() -> i32 {
-    print_str("Hello, World!");
+    print_ln_str("Hello, World!");
     return 0;
 }
 ```

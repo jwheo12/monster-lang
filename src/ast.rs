@@ -110,6 +110,8 @@ pub enum Stmt {
         condition: Expr,
         body: Vec<Stmt>,
     },
+    Break,
+    Continue,
     Return(Option<Expr>),
 }
 
@@ -130,6 +132,7 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
+    pub imports: Vec<String>,
     pub structs: Vec<StructDef>,
     pub functions: Vec<Function>,
 }

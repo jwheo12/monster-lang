@@ -87,6 +87,7 @@ impl Lexer {
 
         let kind = match s.as_str() {
             "extern" => TokenKind::Extern,
+            "import" => TokenKind::Import,
             "fn" => TokenKind::Fn,
             "struct" => TokenKind::Struct,
             "let" => TokenKind::Let,
@@ -96,6 +97,8 @@ impl Lexer {
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "while" => TokenKind::While,
+            "break" => TokenKind::Break,
+            "continue" => TokenKind::Continue,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
             _ => TokenKind::Ident,

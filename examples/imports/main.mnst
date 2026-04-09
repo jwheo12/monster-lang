@@ -1,0 +1,27 @@
+import "math.mnst";
+
+fn sum_until(limit: i32) -> i32 {
+    let mut i: i32 = 0;
+    let mut sum: i32 = 0;
+
+    while i < limit {
+        i = i + 1;
+
+        if i == 4 {
+            continue;
+        }
+
+        if i > 7 {
+            break;
+        }
+
+        sum = add(sum, i);
+    }
+
+    return sum;
+}
+
+fn main() -> i32 {
+    print_i32(sum_until(10));
+    return sum_until(10);
+}

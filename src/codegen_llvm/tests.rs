@@ -52,6 +52,32 @@ fn emits_control_flow_and_phi_for_logic() {
 }
 
 #[test]
+fn emits_break_and_continue_in_while_loop() {
+    let ir = emit_source(
+        r#"
+        fn main() -> i32 {
+            let mut i: i32 = 0;
+
+            while i < 5 {
+                if i == 2 {
+                    break;
+                }
+
+                i = i + 1;
+                continue;
+            }
+
+            return i;
+        }
+        "#,
+    );
+
+    assert!(ir.contains("br label %while.end."));
+    assert!(ir.contains("br label %while.cond."));
+    assert!(ir.contains("while.body."));
+}
+
+#[test]
 fn emits_builtin_io_calls() {
     let ir = emit_source(
         r#"

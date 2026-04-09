@@ -126,11 +126,14 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
+        let mut imports = Vec::new();
         let mut structs = Vec::new();
         let mut functions = Vec::new();
 
         while !self.at(TokenKind::Eof) {
-            if self.at(TokenKind::Struct) {
+            if self.at(TokenKind::Import) {
+                imports.push(self.parse_import()?);
+            } else if self.at(TokenKind::Struct) {
                 let struct_def = self.parse_struct()?;
                 self.known_structs.insert(struct_def.name.clone());
                 structs.push(struct_def);
@@ -139,7 +142,18 @@ impl Parser {
             }
         }
 
-        Ok(Program { structs, functions })
+        Ok(Program {
+            imports,
+            structs,
+            functions,
+        })
+    }
+
+    fn parse_import(&mut self) -> Result<String, String> {
+        self.expect(TokenKind::Import)?;
+        let path = self.expect(TokenKind::Str)?.lexeme;
+        self.expect(TokenKind::Semicolon)?;
+        Ok(path)
     }
 
     fn parse_struct(&mut self) -> Result<StructDef, String> {
@@ -282,6 +296,10 @@ impl Parser {
             self.parse_if_stmt()
         } else if self.at(TokenKind::While) {
             self.parse_while_stmt()
+        } else if self.at(TokenKind::Break) {
+            self.parse_break_stmt()
+        } else if self.at(TokenKind::Continue) {
+            self.parse_continue_stmt()
         } else if self.at(TokenKind::Star) {
             self.parse_assign_deref_stmt()
         } else if self.at_index_assign_start() {
@@ -425,6 +443,18 @@ impl Parser {
         let body = self.parse_block()?;
 
         Ok(Stmt::While { condition, body })
+    }
+
+    fn parse_break_stmt(&mut self) -> Result<Stmt, String> {
+        self.expect(TokenKind::Break)?;
+        self.expect(TokenKind::Semicolon)?;
+        Ok(Stmt::Break)
+    }
+
+    fn parse_continue_stmt(&mut self) -> Result<Stmt, String> {
+        self.expect(TokenKind::Continue)?;
+        self.expect(TokenKind::Semicolon)?;
+        Ok(Stmt::Continue)
     }
 
     fn parse_expr(&mut self) -> Result<Expr, String> {
@@ -803,6 +833,21 @@ mod tests {
     }
 
     #[test]
+    fn parses_import_declaration() {
+        let program = parse_source(
+            r#"
+            import "std/io.mnst";
+
+            fn main() -> i32 {
+                return 0;
+            }
+            "#,
+        );
+
+        assert_eq!(program.imports, vec!["std/io.mnst".to_string()]);
+    }
+
+    #[test]
     fn parses_control_flow_and_assignment() {
         let program = parse_source(
             r#"
@@ -849,6 +894,42 @@ mod tests {
         };
         assert!(matches!(condition, Expr::Binary { op: BinOp::Lt, .. }));
         assert!(matches!(body[0], Stmt::If { .. }));
+    }
+
+    #[test]
+    fn parses_break_and_continue() {
+        let program = parse_source(
+            r#"
+            fn main() -> i32 {
+                let mut i: i32 = 0;
+
+                while i < 10 {
+                    if i == 3 {
+                        break;
+                    }
+
+                    i = i + 1;
+                    continue;
+                }
+
+                return i;
+            }
+            "#,
+        );
+
+        let body = program.functions[0]
+            .body
+            .as_ref()
+            .expect("expected function body");
+        let Stmt::While { body, .. } = &body[1] else {
+            panic!("expected while statement");
+        };
+
+        let Stmt::If { then_body, .. } = &body[0] else {
+            panic!("expected nested if");
+        };
+        assert!(matches!(then_body.as_slice(), [Stmt::Break]));
+        assert!(matches!(body[2], Stmt::Continue));
     }
 
     #[test]

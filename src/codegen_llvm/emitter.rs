@@ -26,6 +26,12 @@ struct Place {
     ty: Type,
 }
 
+#[derive(Clone)]
+struct LoopLabels {
+    continue_label: String,
+    break_label: String,
+}
+
 pub(super) struct FunctionEmitter<'a> {
     function: &'a Function,
     function_sigs: &'a HashMap<String, FunctionSig>,
@@ -34,6 +40,7 @@ pub(super) struct FunctionEmitter<'a> {
     entry_allocas: Vec<String>,
     body_lines: Vec<String>,
     scopes: Vec<HashMap<String, LocalVar>>,
+    loop_stack: Vec<LoopLabels>,
     temp_counter: usize,
     label_counter: usize,
     slot_counter: usize,
@@ -56,6 +63,7 @@ impl<'a> FunctionEmitter<'a> {
             entry_allocas: Vec::new(),
             body_lines: Vec::new(),
             scopes: Vec::new(),
+            loop_stack: Vec::new(),
             temp_counter: 0,
             label_counter: 0,
             slot_counter: 0,
@@ -189,6 +197,23 @@ impl<'a> FunctionEmitter<'a> {
                 let _ = self.emit_expr(expr)?;
                 Ok(())
             }
+            Stmt::Break => {
+                let labels = self
+                    .loop_stack
+                    .last()
+                    .cloned()
+                    .ok_or_else(|| "internal error: break used outside of loop".to_string())?;
+                self.emit_terminator(format!("br label %{}", labels.break_label));
+                Ok(())
+            }
+            Stmt::Continue => {
+                let labels =
+                    self.loop_stack.last().cloned().ok_or_else(|| {
+                        "internal error: continue used outside of loop".to_string()
+                    })?;
+                self.emit_terminator(format!("br label %{}", labels.continue_label));
+                Ok(())
+            }
             Stmt::Return(Some(expr)) => {
                 let value = self.emit_expr(expr)?;
                 self.emit_terminator(format!("ret {} {}", llvm_type(&value.ty), value.repr));
@@ -266,7 +291,12 @@ impl<'a> FunctionEmitter<'a> {
         ));
 
         self.start_block(&body_label);
+        self.loop_stack.push(LoopLabels {
+            continue_label: cond_label.clone(),
+            break_label: end_label.clone(),
+        });
         self.emit_stmts(body, true)?;
+        self.loop_stack.pop();
         if !self.terminated {
             self.emit_terminator(format!("br label %{}", cond_label));
         }

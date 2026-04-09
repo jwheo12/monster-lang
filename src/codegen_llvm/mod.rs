@@ -181,6 +181,7 @@ fn collect_strings_from_stmt(
             collect_strings_from_expr(value, string_literals, next_index);
         }
         Stmt::Expr(expr) => collect_strings_from_expr(expr, string_literals, next_index),
+        Stmt::Break | Stmt::Continue => {}
         Stmt::Return(Some(expr)) => collect_strings_from_expr(expr, string_literals, next_index),
         Stmt::Return(None) => {}
         Stmt::If {

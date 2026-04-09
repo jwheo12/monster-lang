@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenKind {
     Extern,
+    Import,
     Fn,
     Struct,
     Let,
@@ -10,6 +11,8 @@ pub enum TokenKind {
     If,
     Else,
     While,
+    Break,
+    Continue,
     True,
     False,
     Arrow,        // ->

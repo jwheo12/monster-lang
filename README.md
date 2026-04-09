@@ -125,6 +125,7 @@ Implemented today:
 
 Supported language features:
 
+- `import "path/to/file.mnst";`
 - `fn`
 - `extern fn`
 - `let`
@@ -133,7 +134,11 @@ Supported language features:
 - `return;`
 - `if` / `else`
 - `while`
+- `break`
+- `continue`
 - `i32`
+- `u8`
+- `usize`
 - `bool`
 - `str`
 - `void`
@@ -152,6 +157,7 @@ Supported language features:
 - comparison operators: `== != < <= > >=`
 - string literals
 - builtins: `print_i32`, `print_bool`, `print_str`, `read_i32`, `len`
+- explicit casts with `as`
 
 ## Example
 
@@ -195,6 +201,33 @@ extern fn free(ptr: *i32) -> void;
 ```
 
 See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that grows with `malloc` / `realloc` / `free`, and [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) for the raw LLVM IR emitted by the current compiler.
+
+Monster also supports file-based imports plus loop control:
+
+```mnst
+import "math.mnst";
+
+fn main() -> i32 {
+    let mut i: i32 = 0;
+    let mut sum: i32 = 0;
+
+    while i < 10 {
+        i = i + 1;
+
+        if i == 4 {
+            continue;
+        }
+
+        if i > 7 {
+            break;
+        }
+
+        sum = add(sum, i);
+    }
+
+    return sum;
+}
+```
 
 ## Build From Source
 
@@ -253,13 +286,15 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - [`exam.mnst`](./exam.mnst): a Hello, World! starting point with comments summarizing the rest of the current language surface
 - [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a manual growable vector built with raw pointers and libc allocation
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
+- [`examples/imports/main.mnst`](./examples/imports/main.mnst): relative `import` plus `break` / `continue`
+- [`examples/imports/math.mnst`](./examples/imports/math.mnst): imported helper module used by the loop-control example
 
 ## Roadmap
 
 Near-term goals:
 
-- module/import support
 - file I/O and stronger libc interop
+- CLI arguments
 - growable vectors beyond the current manual `VecI32` pattern
 - more flexible aggregate access
 - better diagnostics with source snippets

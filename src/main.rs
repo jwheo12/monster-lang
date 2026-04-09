@@ -9,6 +9,7 @@ use codegen_llvm::emit_program as emit_llvm_program;
 use lexer::Lexer;
 use parser::Parser;
 use semantic::analyze_program;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -157,20 +158,90 @@ fn parse_build_args(args: impl Iterator<Item = String>) -> Result<BuildArgs, Str
 }
 
 fn load_program(path: &str) -> Result<ast::Program, String> {
-    let source =
-        fs::read_to_string(path).map_err(|e| format!("failed to read '{}': {}", path, e))?;
+    let canonical =
+        fs::canonicalize(path).map_err(|e| format!("failed to resolve '{}': {}", path, e))?;
+
+    let mut loaded = HashSet::new();
+    let mut active = Vec::new();
+    let program = load_program_recursive(&canonical, &mut loaded, &mut active)?;
+
+    analyze_program(&program).map_err(|e| format!("semantic error: {e}"))?;
+
+    Ok(program)
+}
+
+fn load_program_recursive(
+    path: &Path,
+    loaded: &mut HashSet<PathBuf>,
+    active: &mut Vec<PathBuf>,
+) -> Result<ast::Program, String> {
+    if let Some(index) = active.iter().position(|current| current == path) {
+        let mut cycle = active[index..]
+            .iter()
+            .map(|item| item.display().to_string())
+            .collect::<Vec<_>>();
+        cycle.push(path.display().to_string());
+        return Err(format!("import cycle detected: {}", cycle.join(" -> ")));
+    }
+
+    if loaded.contains(path) {
+        return Ok(empty_program());
+    }
+
+    active.push(path.to_path_buf());
+    let parsed = parse_program_from_file(path)?;
+    loaded.insert(path.to_path_buf());
+
+    let mut merged = empty_program();
+    let base_dir = path.parent().ok_or_else(|| {
+        format!(
+            "failed to determine parent directory of '{}'",
+            path.display()
+        )
+    })?;
+
+    for import in &parsed.imports {
+        let import_path = base_dir.join(import);
+        let canonical_import = fs::canonicalize(&import_path).map_err(|e| {
+            format!(
+                "failed to resolve import '{}' from '{}': {}",
+                import,
+                path.display(),
+                e
+            )
+        })?;
+
+        let imported = load_program_recursive(&canonical_import, loaded, active)?;
+        merged.structs.extend(imported.structs);
+        merged.functions.extend(imported.functions);
+    }
+
+    merged.structs.extend(parsed.structs);
+    merged.functions.extend(parsed.functions);
+
+    active.pop();
+    Ok(merged)
+}
+
+fn parse_program_from_file(path: &Path) -> Result<ast::Program, String> {
+    let source = fs::read_to_string(path)
+        .map_err(|e| format!("failed to read '{}': {}", path.display(), e))?;
 
     let mut lexer = Lexer::new(&source);
     let tokens = lexer.tokenize().map_err(|e| format!("lexer error: {e}"))?;
 
     let mut parser = Parser::new(tokens);
-    let program = parser
+    parser
         .parse_program()
-        .map_err(|e| format!("parser error: {e}"))?;
+        .map_err(|e| format!("parser error in '{}': {e}", path.display()))
+}
 
-    analyze_program(&program).map_err(|e| format!("semantic error: {e}"))?;
-
-    Ok(program)
+fn empty_program() -> ast::Program {
+    ast::Program {
+        imports: Vec::new(),
+        structs: Vec::new(),
+        functions: Vec::new(),
+    }
 }
 
 fn build_to_binary(input: &str, mode: BuildMode) -> Result<PathBuf, String> {
@@ -354,7 +425,10 @@ fn find_tool(candidates: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildArgs, BuildMode, parse_build_args};
+    use super::{BuildArgs, BuildMode, load_program, parse_build_args};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn parses_release_build_args() {
@@ -401,5 +475,80 @@ mod tests {
         let err = parse_build_args(vec!["--wat".to_string(), "exam.mnst".to_string()].into_iter())
             .unwrap_err();
         assert!(err.contains("unknown option"));
+    }
+
+    #[test]
+    fn loads_relative_imports_recursively() {
+        let temp_dir = unique_temp_dir("monster-imports");
+        fs::create_dir_all(temp_dir.join("lib")).unwrap();
+
+        fs::write(
+            temp_dir.join("lib").join("math.mnst"),
+            r#"
+            fn add(a: i32, b: i32) -> i32 {
+                return a + b;
+            }
+            "#,
+        )
+        .unwrap();
+
+        fs::write(
+            temp_dir.join("main.mnst"),
+            r#"
+            import "lib/math.mnst";
+
+            fn main() -> i32 {
+                return add(3, 4);
+            }
+            "#,
+        )
+        .unwrap();
+
+        let program = load_program(temp_dir.join("main.mnst").to_str().unwrap()).unwrap();
+        assert_eq!(program.imports.len(), 0);
+        assert_eq!(program.functions.len(), 2);
+        assert_eq!(program.functions[0].name, "add");
+        assert_eq!(program.functions[1].name, "main");
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn rejects_import_cycles() {
+        let temp_dir = unique_temp_dir("monster-cycle");
+        fs::create_dir_all(temp_dir.join("lib")).unwrap();
+
+        fs::write(
+            temp_dir.join("main.mnst"),
+            r#"
+            import "lib/loop.mnst";
+
+            fn main() -> i32 {
+                return 0;
+            }
+            "#,
+        )
+        .unwrap();
+
+        fs::write(
+            temp_dir.join("lib").join("loop.mnst"),
+            r#"
+            import "../main.mnst";
+            "#,
+        )
+        .unwrap();
+
+        let err = load_program(temp_dir.join("main.mnst").to_str().unwrap()).unwrap_err();
+        assert!(err.contains("import cycle detected"));
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()))
     }
 }

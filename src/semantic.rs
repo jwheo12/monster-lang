@@ -29,6 +29,7 @@ struct Analyzer {
     functions: HashMap<String, FunctionSig>,
     scopes: Vec<HashMap<String, VarInfo>>,
     current_return_type: Option<Type>,
+    loop_depth: usize,
 }
 
 impl Analyzer {
@@ -38,6 +39,7 @@ impl Analyzer {
             functions: HashMap::new(),
             scopes: Vec::new(),
             current_return_type: None,
+            loop_depth: 0,
         };
         analyzer.install_builtins();
         analyzer
@@ -105,6 +107,7 @@ impl Analyzer {
 
         self.scopes.clear();
         self.current_return_type = Some(func.ret_type.clone());
+        self.loop_depth = 0;
         self.enter_scope();
 
         for (name, ty) in &func.params {
@@ -251,7 +254,24 @@ impl Analyzer {
             Stmt::While { condition, body } => {
                 let cond_ty = self.analyze_expr(condition)?;
                 self.expect_type(&cond_ty, &Type::Bool, "while condition")?;
-                self.analyze_nested_block(body)
+                self.loop_depth += 1;
+                let result = self.analyze_nested_block(body);
+                self.loop_depth -= 1;
+                result
+            }
+            Stmt::Break => {
+                if self.loop_depth == 0 {
+                    Err("break used outside of loop".to_string())
+                } else {
+                    Ok(())
+                }
+            }
+            Stmt::Continue => {
+                if self.loop_depth == 0 {
+                    Err("continue used outside of loop".to_string())
+                } else {
+                    Ok(())
+                }
             }
             Stmt::Return(expr) => {
                 let expected = self
@@ -812,6 +832,64 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_break_and_continue_inside_loop() {
+        let result = analyze_source(
+            r#"
+            fn main() -> i32 {
+                let mut i: i32 = 0;
+
+                while i < 5 {
+                    if i == 2 {
+                        break;
+                    }
+
+                    i = i + 1;
+                    continue;
+                }
+
+                return i;
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_break_outside_loop() {
+        let result = analyze_source(
+            r#"
+            fn main() -> i32 {
+                break;
+                return 0;
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("break used outside of loop")
+        ));
+    }
+
+    #[test]
+    fn rejects_continue_outside_loop() {
+        let result = analyze_source(
+            r#"
+            fn main() -> i32 {
+                continue;
+                return 0;
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("continue used outside of loop")
+        ));
     }
 
     #[test]

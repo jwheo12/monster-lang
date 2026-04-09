@@ -1029,6 +1029,21 @@ mod tests {
     }
 
     #[test]
+    fn accepts_main_with_argc_and_argv() {
+        let result = analyze_source(
+            r#"
+            fn main(argc: i32, argv: **u8) -> i32 {
+                let first: *u8 = argv[0];
+                print_ln_str(first as str);
+                return argc;
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn rejects_bare_return_in_non_void_function() {
         let result = analyze_source(
             r#"

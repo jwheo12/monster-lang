@@ -367,3 +367,20 @@ fn emits_nested_array_index_assignment() {
     assert!(ir.contains("getelementptr inbounds [2 x i32], ptr %elem.ptr."));
     assert!(ir.contains("store i32 99, ptr %elem.ptr."));
 }
+
+#[test]
+fn emits_main_with_argc_and_argv() {
+    let ir = emit_source(
+        r#"
+        fn main(argc: i32, argv: **u8) -> i32 {
+            let first: *u8 = argv[0];
+            print_ln_str(first as str);
+            return argc;
+        }
+        "#,
+    );
+
+    assert!(ir.contains("define i32 @main(i32 %argc, ptr %argv) {"));
+    assert!(ir.contains("getelementptr inbounds ptr, ptr %"));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_str(ptr %"));
+}

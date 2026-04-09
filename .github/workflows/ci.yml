@@ -38,6 +38,8 @@ jobs:
           cargo run --locked -- check exam.mnst
           cargo run --locked -- emit-llvm exam.mnst > /tmp/exam.ll
           cargo run --locked -- run exam.mnst
+          cargo run --locked -- check examples/argv.mnst
+          cargo run --locked -- run examples/argv.mnst -- hello
           cargo run --locked -- check examples/imports/main.mnst
           cargo run --locked -- emit-llvm examples/imports/main.mnst > /tmp/imports.ll
           cargo run --locked -- run examples/imports/main.mnst

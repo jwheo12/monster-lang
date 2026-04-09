@@ -27,6 +27,12 @@ struct BuildArgs {
     mode: BuildMode,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RunArgs {
+    build: BuildArgs,
+    program_args: Vec<String>,
+}
+
 fn main() {
     if let Err(err) = real_main() {
         eprintln!("error: {err}");
@@ -81,9 +87,10 @@ fn real_main() -> Result<(), String> {
             Ok(())
         }
         "run" => {
-            let build_args = parse_build_args(args)?;
-            let output = build_to_binary(&build_args.input, build_args.mode)?;
+            let run_args = parse_run_args(args)?;
+            let output = build_to_binary(&run_args.build.input, run_args.build.mode)?;
             let status = Command::new(&output)
+                .args(&run_args.program_args)
                 .status()
                 .map_err(|e| format!("failed to run '{}': {}", output.display(), e))?;
 
@@ -111,8 +118,8 @@ fn usage() -> String {
         "  mst emit-llvm <file.mnst>",
         "  mst build <file.mnst>",
         "  mst build --debug <file.mnst>",
-        "  mst run <file.mnst>",
-        "  mst run --debug <file.mnst>",
+        "  mst run <file.mnst> [-- <args...>]",
+        "  mst run --debug <file.mnst> [-- <args...>]",
         "  mst clean",
         "  mst help",
         "  mst version",
@@ -121,6 +128,7 @@ fn usage() -> String {
         "  -h, --help      show this help",
         "  -V, --version   show compiler version",
         "  --debug         build without LLVM -O2 and link with clang -g -O0",
+        "  --              pass remaining arguments to the compiled program",
     ]
     .join("\n")
         + "\n"
@@ -155,6 +163,36 @@ fn parse_build_args(args: impl Iterator<Item = String>) -> Result<BuildArgs, Str
 
     let input = input.ok_or_else(usage)?;
     Ok(BuildArgs { input, mode })
+}
+
+fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs, String> {
+    let mut input = None;
+    let mut mode = BuildMode::Release;
+    let mut program_args = Vec::new();
+    let mut forwarding = false;
+
+    for arg in args {
+        if forwarding {
+            program_args.push(arg);
+            continue;
+        }
+
+        match arg.as_str() {
+            "--" => forwarding = true,
+            "--debug" => mode = BuildMode::Debug,
+            _ if arg.starts_with('-') && input.is_none() => {
+                return Err(format!("unknown option: {arg}"));
+            }
+            _ if input.is_none() => input = Some(arg),
+            _ => program_args.push(arg),
+        }
+    }
+
+    let input = input.ok_or_else(usage)?;
+    Ok(RunArgs {
+        build: BuildArgs { input, mode },
+        program_args,
+    })
 }
 
 fn load_program(path: &str) -> Result<ast::Program, String> {
@@ -425,7 +463,7 @@ fn find_tool(candidates: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildArgs, BuildMode, load_program, parse_build_args};
+    use super::{BuildArgs, BuildMode, RunArgs, load_program, parse_build_args, parse_run_args};
     use std::fs;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -475,6 +513,47 @@ mod tests {
         let err = parse_build_args(vec!["--wat".to_string(), "exam.mnst".to_string()].into_iter())
             .unwrap_err();
         assert!(err.contains("unknown option"));
+    }
+
+    #[test]
+    fn parses_run_args_without_forwarded_program_args() {
+        let parsed = parse_run_args(vec!["exam.mnst".to_string()].into_iter()).unwrap();
+        assert_eq!(
+            parsed,
+            RunArgs {
+                build: BuildArgs {
+                    input: "exam.mnst".to_string(),
+                    mode: BuildMode::Release,
+                },
+                program_args: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_run_args_with_debug_and_forwarded_program_args() {
+        let parsed = parse_run_args(
+            vec![
+                "--debug".to_string(),
+                "exam.mnst".to_string(),
+                "--".to_string(),
+                "alpha".to_string(),
+                "--flag".to_string(),
+            ]
+            .into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            parsed,
+            RunArgs {
+                build: BuildArgs {
+                    input: "exam.mnst".to_string(),
+                    mode: BuildMode::Debug,
+                },
+                program_args: vec!["alpha".to_string(), "--flag".to_string()],
+            }
+        );
     }
 
     #[test]

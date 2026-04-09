@@ -87,6 +87,7 @@ mst build exam.mnst
 mst build --debug exam.mnst
 mst run exam.mnst
 mst run --debug exam.mnst
+mst run examples/argv.mnst -- hello
 mst clean
 mst --help
 mst --version
@@ -94,6 +95,7 @@ mst --version
 
 Generated binaries and intermediate LLVM files are written to `target/mst/`.
 `--debug` builds skip LLVM `-O2` optimization and link with `clang -g -O0`.
+Use `--` to forward remaining CLI arguments to the compiled Monster program.
 
 ## VS Code
 
@@ -132,6 +134,7 @@ Supported language features:
 - `let mut`
 - `return`
 - `return;`
+- `main(argc: i32, argv: **u8)` entry arguments
 - `if` / `else`
 - `while`
 - `break`
@@ -286,6 +289,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 ## Example Program
 
 - [`exam.mnst`](./exam.mnst): a Hello, World! starting point with comments summarizing the rest of the current language surface
+- [`examples/argv.mnst`](./examples/argv.mnst): `main(argc, argv)` plus forwarded CLI arguments
 - [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a manual growable vector built with raw pointers and libc allocation
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
 - [`examples/imports/main.mnst`](./examples/imports/main.mnst): relative `import` plus `break` / `continue`

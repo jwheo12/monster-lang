@@ -1,16 +1,13 @@
 :root {
-  --bg: #f7efe6;
-  --surface: rgba(255, 248, 241, 0.88);
-  --surface-strong: #fffaf5;
-  --text: #23160f;
-  --muted: #6f5647;
-  --line: rgba(75, 47, 31, 0.14);
-  --accent: #d56318;
-  --accent-dark: #9f3e05;
-  --accent-soft: rgba(213, 99, 24, 0.12);
-  --shadow: 0 24px 60px rgba(61, 33, 16, 0.12);
-  --code-bg: #1f1713;
-  --code-text: #f8ebdd;
+  --bg: #ffffff;
+  --text: #24292f;
+  --muted: #57606a;
+  --line: #d0d7de;
+  --line-soft: #eaeef2;
+  --link: #0969da;
+  --surface: #f6f8fa;
+  --code-bg: #f6f8fa;
+  --code-text: #24292f;
 }
 
 * {
@@ -23,17 +20,14 @@ html {
 
 body {
   margin: 0;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: var(--bg);
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(255, 176, 104, 0.24), transparent 34%),
-    radial-gradient(circle at top right, rgba(181, 78, 17, 0.2), transparent 28%),
-    linear-gradient(180deg, #fff7f0 0%, var(--bg) 54%, #efe1d2 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   line-height: 1.6;
 }
 
 a {
-  color: var(--accent-dark);
+  color: var(--link);
   text-decoration: none;
 }
 
@@ -43,34 +37,37 @@ a:hover {
 
 code,
 pre {
-  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-}
-
-pre {
-  margin: 0;
-  padding: 1rem 1.1rem;
-  overflow-x: auto;
-  background: var(--code-bg);
-  color: var(--code-text);
-  border-radius: 18px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 code {
   padding: 0.12rem 0.34rem;
-  background: rgba(35, 22, 15, 0.06);
+  background: var(--code-bg);
+  border: 1px solid var(--line-soft);
   border-radius: 6px;
+  color: var(--code-text);
+}
+
+pre {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  overflow-x: auto;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--code-text);
 }
 
 pre code {
   padding: 0;
+  border: 0;
   background: transparent;
 }
 
 .site-shell {
-  width: min(1120px, calc(100% - 2rem));
+  width: min(1080px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 1.25rem 0 4rem;
+  padding: 0 0 3rem;
 }
 
 .topbar {
@@ -79,146 +76,145 @@ pre code {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 0 1.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  gap: 0.5rem;
   color: var(--text);
+  font-weight: 600;
 }
 
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 16px;
-  color: #fff9f5;
-  background: linear-gradient(135deg, #ff8e2b 0%, #b14406 100%);
-  box-shadow: var(--shadow);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.95rem;
 }
 
 .nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 1rem;
 }
 
 .nav a {
-  padding: 0.58rem 0.85rem;
-  border-radius: 999px;
   color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .nav a[aria-current="page"] {
-  background: var(--surface-strong);
-  color: var(--accent-dark);
-  box-shadow: 0 10px 24px rgba(61, 33, 16, 0.09);
+  color: var(--text);
+  font-weight: 600;
 }
 
+.page-header,
 .hero,
-.content-card {
-  background: var(--surface);
-  backdrop-filter: blur(18px);
+.section,
+.note,
+.card,
+.feature {
+  margin-top: 1.25rem;
+  padding: 1.25rem;
   border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  border-radius: 28px;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .hero {
-  padding: 2rem;
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.72rem;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  font-size: 0.93rem;
-  font-weight: 700;
+  display: block;
 }
 
 .hero h1,
 .page-header h1 {
-  margin: 0.65rem 0 0;
-  font-size: clamp(2.1rem, 5vw, 4rem);
-  line-height: 0.98;
-  letter-spacing: -0.04em;
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.2;
 }
 
 .hero p,
-.page-header p {
-  margin: 1rem 0 0;
-  max-width: 54ch;
+.page-header p,
+.section p,
+.section li,
+.card p,
+.feature p,
+.note p {
   color: var(--muted);
-  font-size: 1.03rem;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
-  margin-top: 1.4rem;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.8rem 1.05rem;
-  border-radius: 14px;
-  font-weight: 700;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
 }
 
 .button-primary {
-  color: #fff9f5;
-  background: linear-gradient(135deg, #f07823 0%, #ad4206 100%);
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
 }
 
 .button-secondary {
-  color: var(--text);
-  background: var(--surface-strong);
-  border: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .hero-panel {
-  display: grid;
-  align-content: start;
-  gap: 1rem;
-  padding: 1.1rem;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 245, 236, 0.72));
-  border: 1px solid rgba(75, 47, 31, 0.1);
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-soft);
 }
 
 .hero-panel h2,
 .section h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
 }
 
 .panel-list,
 .feature-grid,
 .card-grid,
 .doc-grid,
-.link-list {
+.link-list,
+.toc-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .panel-list li,
-.link-list li {
+.link-list li,
+.toc-list li {
   color: var(--muted);
 }
 
@@ -227,70 +223,19 @@ pre code {
 .card-grid {
   display: grid;
   gap: 1rem;
-}
-
-.doc-grid {
-  margin-top: 1.4rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.feature-grid,
-.card-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
 .card,
-.feature,
-.note,
-.page-header,
-.section {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
-}
-
-.card,
-.feature,
-.section,
-.page-header {
-  padding: 1.35rem;
-}
-
-.card h3,
-.feature h3,
-.section h2,
-.section h3 {
+.feature {
   margin-top: 0;
-}
-
-.card p,
-.feature p,
-.section p,
-.section li,
-.note p {
-  color: var(--muted);
-}
-
-.section {
-  margin-top: 1.2rem;
-}
-
-.section ul,
-.section ol {
-  margin: 0.8rem 0 0;
-  padding-left: 1.2rem;
-}
-
-.page-header {
-  margin-bottom: 1.2rem;
 }
 
 .layout {
   display: grid;
-  gap: 1.2rem;
   grid-template-columns: minmax(0, 1fr) 280px;
-  margin-top: 1.2rem;
+  gap: 1.5rem;
+  margin-top: 1.25rem;
 }
 
 .sidebar {
@@ -299,12 +244,38 @@ pre code {
   align-self: start;
 }
 
-.note {
-  padding: 1rem 1.1rem;
+.section h3 {
+  margin: 1.2rem 0 0;
+  font-size: 1rem;
 }
 
-.note strong {
-  color: var(--text);
+.section h3:first-of-type {
+  margin-top: 0.8rem;
+}
+
+.section ul,
+.section ol {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.section table {
+  width: 100%;
+  margin-top: 1rem;
+  border-collapse: collapse;
+}
+
+.section th,
+.section td {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.section th {
+  background: var(--surface);
+  font-weight: 600;
 }
 
 .muted {
@@ -312,14 +283,13 @@ pre code {
 }
 
 .footer {
-  margin-top: 1.8rem;
+  margin-top: 2rem;
   padding-top: 1rem;
   color: var(--muted);
   border-top: 1px solid var(--line);
 }
 
 @media (max-width: 920px) {
-  .hero,
   .layout {
     grid-template-columns: 1fr;
   }
@@ -331,23 +301,20 @@ pre code {
 
 @media (max-width: 640px) {
   .site-shell {
-    width: min(100% - 1rem, 1120px);
+    width: min(100% - 1rem, 1080px);
   }
 
-  .hero,
+  .hero h1,
+  .page-header h1 {
+    font-size: 1.6rem;
+  }
+
   .page-header,
+  .hero,
   .section,
+  .note,
   .card,
   .feature {
     padding: 1rem;
-    border-radius: 20px;
-  }
-
-  .topbar {
-    padding-top: 0.6rem;
-  }
-
-  .nav {
-    width: 100%;
   }
 }

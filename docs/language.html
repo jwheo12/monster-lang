@@ -25,12 +25,13 @@
       <main class="layout">
         <div>
           <section class="page-header">
-            <h1>Language Overview</h1>
-            <p>Monster currently blends a Rust-leaning surface syntax with low-level C-style control, pointers, explicit memory work, and an LLVM-first backend.</p>
+            <h1>Language Reference</h1>
+            <p>This page is a feature-by-feature guide to the current Monster language. It focuses on what exists today and how each piece is meant to be used.</p>
           </section>
 
           <section class="section" id="functions">
-            <h2>Functions and Control Flow</h2>
+            <h2>Functions</h2>
+            <p>Functions are declared with <code>fn</code>. External functions use <code>extern fn</code>.</p>
             <pre><code>fn classify(x: i32) -> i32 {
     if x &lt; 0 {
         return -1;
@@ -41,30 +42,99 @@
     }
 }</code></pre>
             <ul>
-              <li><code>fn</code> and <code>extern fn</code></li>
-              <li><code>return expr;</code> and <code>return;</code></li>
-              <li><code>if</code>, <code>else</code>, <code>while</code>, <code>break</code>, <code>continue</code></li>
+              <li>Parameters use <code>name: type</code>.</li>
+              <li>Return types use <code>-> type</code>.</li>
+              <li><code>return expr;</code> and <code>return;</code> are both supported.</li>
+              <li>Non-void functions must return on all reachable paths.</li>
+            </ul>
+          </section>
+
+          <section class="section" id="control-flow">
+            <h2>Control Flow</h2>
+            <p>Monster currently supports conditional logic and loops in a direct, expression-light style.</p>
+            <ul>
+              <li><code>if</code> / <code>else</code></li>
+              <li><code>while</code></li>
+              <li><code>break</code> and <code>continue</code> inside loops</li>
+              <li><code>match</code> as an enum-focused expression</li>
+            </ul>
+          </section>
+
+          <section class="section" id="variables">
+            <h2>Variables and Assignment</h2>
+            <p>Bindings use <code>let</code>. Reassignment requires <code>mut</code>.</p>
+            <pre><code>let x: i32 = 10;
+let mut y: i32 = 20;
+y = y + x;</code></pre>
+            <ul>
+              <li>Local variable declarations are typed explicitly.</li>
+              <li>Immutable variables reject assignment in semantic analysis.</li>
+              <li>Array element, struct field, and dereference assignment are supported.</li>
             </ul>
           </section>
 
           <section class="section" id="types">
             <h2>Types</h2>
-            <p>Built-in scalar types:</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>What it is for</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>i32</code></td>
+                  <td>signed 32-bit integer</td>
+                </tr>
+                <tr>
+                  <td><code>u8</code></td>
+                  <td>byte-sized unsigned integer</td>
+                </tr>
+                <tr>
+                  <td><code>usize</code></td>
+                  <td>pointer-sized unsigned integer, used for lengths and sizes</td>
+                </tr>
+                <tr>
+                  <td><code>bool</code></td>
+                  <td>boolean value</td>
+                </tr>
+                <tr>
+                  <td><code>str</code></td>
+                  <td>string-like runtime pointer used with builtins and C-style string flows</td>
+                </tr>
+                <tr>
+                  <td><code>void</code></td>
+                  <td>no return value</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>Monster also supports type casts with <code>as</code> and size queries with <code>sizeof(T)</code>.</p>
+          </section>
+
+          <section class="section" id="arrays">
+            <h2>Arrays and Slices</h2>
+            <pre><code>let values: [i32; 3] = [10, 20, 30];
+let view: [i32] = slice(values);
+let n: usize = len(view);</code></pre>
             <ul>
-              <li><code>i32</code></li>
-              <li><code>u8</code></li>
-              <li><code>usize</code></li>
-              <li><code>bool</code></li>
-              <li><code>str</code></li>
-              <li><code>void</code></li>
+              <li>Fixed arrays use <code>[T; N]</code>.</li>
+              <li>Slices use <code>[T]</code> and can be built from arrays with <code>slice(array)</code>.</li>
+              <li>Reading and writing through indexing are both supported.</li>
+              <li>Nested array index assignment is supported.</li>
             </ul>
-            <p>Composite types and low-level forms:</p>
+          </section>
+
+          <section class="section" id="pointers">
+            <h2>Pointers</h2>
+            <pre><code>let p: *i32 = &amp;values[0];
+*p = 42;
+let next: i32 = p[1];</code></pre>
             <ul>
-              <li>fixed arrays: <code>[T; N]</code></li>
-              <li>slices: <code>[T]</code> and <code>slice(array)</code></li>
-              <li>raw pointers: <code>*T</code>, <code>&amp;expr</code>, <code>*ptr</code>, <code>ptr[i]</code></li>
-              <li>structs</li>
-              <li>enums and payload enums</li>
+              <li>Pointer types use <code>*T</code>.</li>
+              <li>Address-of uses <code>&amp;expr</code>.</li>
+              <li>Dereference reads use <code>*ptr</code>.</li>
+              <li>Dereference writes and pointer indexing are supported.</li>
             </ul>
           </section>
 
@@ -80,6 +150,11 @@ fn main() -> i32 {
     pair.left = 42;
     return pair.left + pair.right;
 }</code></pre>
+            <ul>
+              <li>Struct declarations live at the top level.</li>
+              <li>Struct literals use named fields.</li>
+              <li>Field reads and field assignment are supported.</li>
+            </ul>
           </section>
 
           <section class="section" id="enums">
@@ -98,9 +173,14 @@ fn value(token: Token) -> i32 {
     };
 }</code></pre>
             <p>
-              Current <code>match</code> support is enum-only and expression-based. Arms must be exhaustive,
-              and payload variants bind through <code>Variant(name)</code> patterns.
+              Current <code>match</code> support is enum-only and expression-based.
             </p>
+            <ul>
+              <li>Payload-free enums are supported.</li>
+              <li>Single-payload variants like <code>Int(i32)</code> are supported.</li>
+              <li><code>match</code> arms must be exhaustive.</li>
+              <li>Payload variants bind through <code>Variant(name)</code> patterns.</li>
+            </ul>
           </section>
 
           <section class="section" id="imports">
@@ -114,29 +194,88 @@ fn main() -> i32 {
               Imports are file-based today. Alias-qualified calls like <code>math.add(...)</code> help keep
               larger programs organized.
             </p>
+            <ul>
+              <li><code>import "path.mnst";</code></li>
+              <li><code>import "path.mnst" as name;</code></li>
+              <li>Qualified calls currently apply to functions.</li>
+            </ul>
+          </section>
+
+          <section class="section" id="entrypoint">
+            <h2>Program Entrypoint and Arguments</h2>
+            <pre><code>fn main(argc: i32, argv: **u8) -> i32 {
+    if argc &gt; 1 {
+        print_ln_str(argv[1] as str);
+    }
+
+    return 0;
+}</code></pre>
+            <p>Monster programs can accept command-line arguments directly through <code>main(argc, argv)</code>.</p>
           </section>
 
           <section class="section" id="builtins">
             <h2>Builtins</h2>
-            <ul>
-              <li>printing: <code>print_*</code>, <code>print_ln_*</code></li>
-              <li>input: <code>read_i32</code></li>
-              <li>array and slice helpers: <code>len</code>, <code>slice</code></li>
-              <li>file I/O: <code>read_file</code>, <code>write_file</code></li>
-              <li>string and byte helpers: <code>strlen</code>, <code>memcmp</code>, <code>memcpy</code>, <code>str_eq</code></li>
-              <li>type utility: <code>sizeof(T)</code></li>
-            </ul>
+            <table>
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  <th>Available builtins</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Printing</td>
+                  <td><code>print_i32</code>, <code>print_bool</code>, <code>print_str</code>, <code>print_ln_i32</code>, <code>print_ln_bool</code>, <code>print_ln_str</code></td>
+                </tr>
+                <tr>
+                  <td>Input</td>
+                  <td><code>read_i32</code></td>
+                </tr>
+                <tr>
+                  <td>Arrays and slices</td>
+                  <td><code>len</code>, <code>slice</code></td>
+                </tr>
+                <tr>
+                  <td>File I/O</td>
+                  <td><code>read_file</code>, <code>write_file</code></td>
+                </tr>
+                <tr>
+                  <td>String and byte utilities</td>
+                  <td><code>strlen</code>, <code>memcmp</code>, <code>memcpy</code>, <code>str_eq</code></td>
+                </tr>
+                <tr>
+                  <td>Enum helpers</td>
+                  <td><code>is</code>, <code>payload</code></td>
+                </tr>
+                <tr>
+                  <td>Type utility</td>
+                  <td><code>sizeof(T)</code></td>
+                </tr>
+              </tbody>
+            </table>
           </section>
         </div>
 
         <aside class="sidebar">
           <div class="note">
-            <p><strong>Current flavor</strong></p>
-            <p>Monster is still intentionally small. The syntax leans Rust-like, while the execution model stays close to C and LLVM.</p>
+            <p><strong>On this page</strong></p>
+            <ul class="toc-list">
+              <li><a href="#functions">Functions</a></li>
+              <li><a href="#control-flow">Control flow</a></li>
+              <li><a href="#variables">Variables</a></li>
+              <li><a href="#types">Types</a></li>
+              <li><a href="#arrays">Arrays and slices</a></li>
+              <li><a href="#pointers">Pointers</a></li>
+              <li><a href="#structs">Structs</a></li>
+              <li><a href="#enums">Enums and match</a></li>
+              <li><a href="#imports">Imports</a></li>
+              <li><a href="#entrypoint">Entrypoint</a></li>
+              <li><a href="#builtins">Builtins</a></li>
+            </ul>
           </div>
           <div class="note">
-            <p><strong>Next stop</strong></p>
-            <p>The examples page is the fastest way to see how modules, payload enums, file I/O, and byte utilities feel in real code.</p>
+            <p><strong>Examples</strong></p>
+            <p>Use the examples page when you want complete runnable programs instead of feature summaries.</p>
             <p><a href="./examples.html">Open examples</a></p>
           </div>
         </aside>

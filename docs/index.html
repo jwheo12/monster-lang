@@ -23,24 +23,18 @@
       </header>
 
       <main>
-        <section class="hero">
-          <div>
-            <span class="eyebrow">LLVM-first AOT systems language</span>
-            <h1>Monster documentation, kept simple and close to the compiler.</h1>
-            <p>
-              Monster is an experimental low-level language with a Rust-flavored surface,
-              explicit control, LLVM IR output, and a small toolchain built around the
-              <code>mst</code> compiler.
-            </p>
-            <div class="hero-actions">
-              <a class="button button-primary" href="./install.html">Install Monster</a>
-              <a class="button button-secondary" href="./language.html">Read the language guide</a>
-            </div>
-          </div>
+        <section class="page-header">
+          <span class="eyebrow">Monster documentation</span>
+          <h1>Reference and guides for the Monster compiler and language.</h1>
+          <p>
+            Monster is an experimental low-level, ahead-of-time systems language. These docs are meant
+            to stay close to the implementation: straightforward pages, feature lists, and runnable examples.
+          </p>
+        </section>
 
-          <aside class="hero-panel">
-            <h2>Pipeline</h2>
-            <pre><code>.mnst source
+        <section class="section">
+          <h2>Pipeline</h2>
+          <pre><code>.mnst source
   -> lexer
   -> parser
   -> AST
@@ -49,60 +43,44 @@
   -> opt-18 (-O2)
   -> clang-18
   -> native binary</code></pre>
-            <ul class="panel-list">
-              <li>Compiler executable: <code>mst</code></li>
-              <li>Source extension: <code>.mnst</code></li>
-              <li>Static docs ready for GitHub Pages and editor help links</li>
-            </ul>
-          </aside>
-        </section>
-
-        <section class="doc-grid" aria-label="Guides">
-          <li class="card">
-            <h3><a href="./install.html">Install</a></h3>
-            <p>Release installer, source install, supported platforms, and update workflow.</p>
-          </li>
-          <li class="card">
-            <h3><a href="./language.html">Language</a></h3>
-            <p>Core syntax, types, control flow, enums, pointers, imports, and builtins.</p>
-          </li>
-          <li class="card">
-            <h3><a href="./cli.html">CLI</a></h3>
-            <p><code>check</code>, <code>emit-llvm</code>, <code>build</code>, <code>run</code>, and debug builds.</p>
-          </li>
-          <li class="card">
-            <h3><a href="./examples.html">Examples</a></h3>
-            <p>Working samples for argv, file I/O, module aliases, enums, match, and byte utilities.</p>
-          </li>
+          <ul>
+            <li>Compiler executable: <code>mst</code></li>
+            <li>Source extension: <code>.mnst</code></li>
+            <li>Docs site: suitable for GitHub Pages and editor help links</li>
+          </ul>
         </section>
 
         <section class="section">
-          <h2>Current Feature Snapshot</h2>
-          <div class="feature-grid">
-            <article class="feature">
-              <h3>Language Core</h3>
-              <p>
-                <code>fn</code>, <code>extern fn</code>, <code>let</code>, <code>let mut</code>,
-                <code>if</code>, <code>while</code>, <code>break</code>, <code>continue</code>,
-                and <code>return</code>/<code>return;</code>.
-              </p>
-            </article>
-            <article class="feature">
-              <h3>Data Model</h3>
-              <p>
-                <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>,
-                <code>str</code>, <code>void</code>, fixed arrays, slices, structs, pointers,
-                enums, and payload enums.
-              </p>
-            </article>
-            <article class="feature">
-              <h3>Low-Level Utilities</h3>
-              <p>
-                <code>sizeof(T)</code>, <code>argc/argv</code>, file I/O builtins, string and byte
-                helpers, and explicit casts with <code>as</code>.
-              </p>
-            </article>
+          <h2>Start Here</h2>
+          <div class="doc-grid" aria-label="Guides">
+          <article class="card">
+            <h3><a href="./install.html">Install</a></h3>
+            <p>Release installer, source install, supported platforms, and update workflow.</p>
+          </article>
+          <article class="card">
+            <h3><a href="./language.html">Language</a></h3>
+            <p>Core syntax, types, control flow, enums, pointers, imports, and builtins.</p>
+          </article>
+          <article class="card">
+            <h3><a href="./cli.html">CLI</a></h3>
+            <p><code>check</code>, <code>emit-llvm</code>, <code>build</code>, <code>run</code>, and debug builds.</p>
+          </article>
+          <article class="card">
+            <h3><a href="./examples.html">Examples</a></h3>
+            <p>Working samples for argv, file I/O, module aliases, enums, match, and byte utilities.</p>
+          </article>
           </div>
+        </section>
+
+        <section class="section">
+          <h2>Current Feature Areas</h2>
+          <ul>
+            <li>Core syntax: <code>fn</code>, <code>extern fn</code>, <code>let</code>, <code>let mut</code>, <code>if</code>, <code>while</code>, <code>break</code>, <code>continue</code>, <code>return</code></li>
+            <li>Types: <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>, <code>str</code>, <code>void</code></li>
+            <li>Data structures: arrays, slices, structs, enums, payload enums, pointers</li>
+            <li>Utilities: <code>sizeof(T)</code>, casts with <code>as</code>, <code>argc/argv</code>, file I/O, string and byte helpers</li>
+            <li>Tooling: LLVM IR emission, optimized builds, debug builds, static docs, and a VS Code extension</li>
+          </ul>
         </section>
 
         <section class="section">

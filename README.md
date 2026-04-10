@@ -130,6 +130,7 @@ Implemented today:
 Supported language features:
 
 - `import "path/to/file.mnst";`
+- `import "path/to/file.mnst" as module;`
 - `fn`
 - `extern fn`
 - `let`
@@ -152,6 +153,7 @@ Supported language features:
 - `true` / `false`
 - variable references
 - function calls
+- qualified module function calls like `math.add(...)`
 - assignment statements
 - fixed-size arrays: `[T; N]`
 - slices: `[T]` and `slice(array)`
@@ -165,6 +167,7 @@ Supported language features:
 - string literals
 - builtins: `print_i32`, `print_bool`, `print_str`, `print_ln_i32`, `print_ln_bool`, `print_ln_str`, `read_i32`, `len`
 - file I/O builtins: `read_file(path, &len)` and `write_file(path, data, len)`
+- string/byte builtins: `strlen`, `memcmp`, `memcpy`, `str_eq`
 - explicit casts with `as`
 
 `print_*` writes without a trailing newline, while `print_ln_*` appends one.
@@ -243,7 +246,7 @@ See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a f
 Monster also supports file-based imports plus loop control:
 
 ```mnst
-import "math.mnst";
+import "math.mnst" as math;
 
 fn main() -> i32 {
     let mut i: i32 = 0;
@@ -260,7 +263,7 @@ fn main() -> i32 {
             break;
         }
 
-        sum = add(sum, i);
+        sum = math.add(sum, i);
     }
 
     return sum;
@@ -327,15 +330,16 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - [`examples/file_io.mnst`](./examples/file_io.mnst): file reading and writing with `read_file` / `write_file`
 - [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a manual growable vector built with raw pointers and libc allocation
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
-- [`examples/imports/main.mnst`](./examples/imports/main.mnst): relative `import` plus `break` / `continue`
+- [`examples/imports/main.mnst`](./examples/imports/main.mnst): aliased `import`, qualified module calls, and `break` / `continue`
 - [`examples/imports/math.mnst`](./examples/imports/math.mnst): imported helper module used by the loop-control example
+- [`examples/string_bytes.mnst`](./examples/string_bytes.mnst): `strlen`, `memcmp`, `memcpy`, and `str_eq` against a copied C string buffer
 
 ## Roadmap
 
 Near-term goals:
 
 - payload-carrying enums / tagged unions
-- stronger module and import structure
+- namespaced types and broader module imports beyond function-level aliasing
 - more complete libc and memory utilities
 - growable vectors beyond the current manual `VecI32` pattern
 - `sizeof`-driven allocation patterns for self-hosting data structures

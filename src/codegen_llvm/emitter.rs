@@ -1,9 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::ast::{BinOp, Expr, Function, Stmt, Type, UnaryOp};
 
 use super::{
-    EnumVariantInfo, FunctionSig, StringLiteralData, StructLayout,
+    EnumLayout, EnumVariantInfo, FunctionSig, StringLiteralData, StructLayout,
     runtime::llvm_function_name,
     util::{integer_bit_width, is_signed_integer_type, llvm_type},
 };
@@ -36,7 +36,7 @@ pub(super) struct FunctionEmitter<'a> {
     function: &'a Function,
     function_sigs: &'a HashMap<String, FunctionSig>,
     struct_layouts: &'a HashMap<String, StructLayout>,
-    enum_names: &'a HashSet<String>,
+    enum_layouts: &'a HashMap<String, EnumLayout>,
     enum_variants: &'a HashMap<String, EnumVariantInfo>,
     string_literals: &'a HashMap<String, StringLiteralData>,
     entry_allocas: Vec<String>,
@@ -55,7 +55,7 @@ impl<'a> FunctionEmitter<'a> {
         function: &'a Function,
         function_sigs: &'a HashMap<String, FunctionSig>,
         struct_layouts: &'a HashMap<String, StructLayout>,
-        enum_names: &'a HashSet<String>,
+        enum_layouts: &'a HashMap<String, EnumLayout>,
         enum_variants: &'a HashMap<String, EnumVariantInfo>,
         string_literals: &'a HashMap<String, StringLiteralData>,
     ) -> Self {
@@ -63,7 +63,7 @@ impl<'a> FunctionEmitter<'a> {
             function,
             function_sigs,
             struct_layouts,
-            enum_names,
+            enum_layouts,
             enum_variants,
             string_literals,
             entry_allocas: Vec::new(),
@@ -119,7 +119,7 @@ impl<'a> FunctionEmitter<'a> {
         out.push_str(&format!(
             "define {} @{}({}) {{\n",
             self.llvm_type(&self.function.ret_type),
-            self.function.name,
+            llvm_function_name(&self.function.name).trim_start_matches('@'),
             params
         ));
 
@@ -160,7 +160,7 @@ impl<'a> FunctionEmitter<'a> {
     }
 
     fn llvm_type(&self, ty: &Type) -> String {
-        llvm_type(ty, self.enum_names)
+        llvm_type(ty, self.enum_layouts)
     }
 
     fn emit_stmt(&mut self, stmt: &Stmt) -> Result<(), String> {
@@ -357,10 +357,14 @@ impl<'a> FunctionEmitter<'a> {
                         ty: local.ty,
                     })
                 } else if let Some(variant) = self.enum_variants.get(name) {
-                    Ok(Value {
-                        repr: variant.discriminant.to_string(),
-                        ty: Type::Named(variant.enum_name.clone()),
-                    })
+                    if variant.payload_ty.is_some() {
+                        Err(format!(
+                            "internal error: enum variant '{}' requires payload construction",
+                            name
+                        ))
+                    } else {
+                        self.emit_enum_variant_value(variant, None)
+                    }
                 } else {
                     Err(format!("internal error: unknown variable '{name}'"))
                 }
@@ -626,6 +630,23 @@ impl<'a> FunctionEmitter<'a> {
         if name == "slice" {
             return self.emit_slice_call(args);
         }
+        if name == "is" {
+            return self.emit_is_call(args);
+        }
+        if name == "payload" {
+            return self.emit_payload_call(args);
+        }
+        if let Some(variant) = self.enum_variants.get(name).cloned() {
+            let payload =
+                if variant.payload_ty.is_some() {
+                    Some(self.emit_expr(args.first().ok_or_else(|| {
+                        format!("internal error: missing payload for '{name}'")
+                    })?)?)
+                } else {
+                    None
+                };
+            return self.emit_enum_variant_value(&variant, payload.as_ref());
+        }
 
         let sig = self
             .function_sigs
@@ -717,6 +738,228 @@ impl<'a> FunctionEmitter<'a> {
             }
             _ => Err("internal error: slice() requires an array or slice value".to_string()),
         }
+    }
+
+    fn emit_is_call(&mut self, args: &[Expr]) -> Result<Value, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "internal error: is() expects 2 args, got {}",
+                args.len()
+            ));
+        }
+
+        let value = self.emit_expr(&args[0])?;
+        let variant = self.extract_variant_designator(&args[1], "is")?;
+        let tag = self.emit_enum_tag(&value)?;
+        let result = self.fresh_temp("is");
+        self.emit_assign(
+            &result,
+            format!("icmp eq i32 {}, {}", tag, variant.discriminant),
+        );
+        Ok(Value {
+            repr: result,
+            ty: Type::Bool,
+        })
+    }
+
+    fn emit_payload_call(&mut self, args: &[Expr]) -> Result<Value, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "internal error: payload() expects 2 args, got {}",
+                args.len()
+            ));
+        }
+
+        let value = self.emit_expr(&args[0])?;
+        let variant = self.extract_variant_designator(&args[1], "payload")?;
+        let variant_name = match &args[1] {
+            Expr::Var(name) => name.clone(),
+            _ => unreachable!("extract_variant_designator validated shape"),
+        };
+        let payload_ty = variant
+            .payload_ty
+            .clone()
+            .ok_or_else(|| format!("internal error: variant '{}' has no payload", variant_name))?;
+        let enum_ty = value.ty.clone();
+
+        let enum_ptr = self.create_stack_slot("enum.payload.tmp", &enum_ty);
+        self.emit_store(&value, &enum_ptr);
+
+        let tag_ptr = self.fresh_temp("enum.tag.ptr");
+        self.emit_assign(
+            &tag_ptr,
+            format!(
+                "getelementptr inbounds {}, ptr {}, i32 0, i32 0",
+                self.llvm_type(&enum_ty),
+                enum_ptr
+            ),
+        );
+        let tag = self.fresh_temp("enum.tag");
+        self.emit_assign(&tag, format!("load i32, ptr {}", tag_ptr));
+
+        let ok_label = self.fresh_label("payload.ok");
+        let fail_label = self.fresh_label("payload.fail");
+        let end_label = self.fresh_label("payload.end");
+
+        let is_expected = self.fresh_temp("payload.is_expected");
+        self.emit_assign(
+            &is_expected,
+            format!("icmp eq i32 {}, {}", tag, variant.discriminant),
+        );
+        self.emit_terminator(format!(
+            "br i1 {}, label %{}, label %{}",
+            is_expected, ok_label, fail_label
+        ));
+
+        self.start_block(&fail_label);
+        self.emit_line("call i32 @puts(ptr getelementptr inbounds ([51 x i8], ptr @.str.enum_payload_error, i64 0, i64 0))".to_string());
+        self.emit_line("call void @exit(i32 1)".to_string());
+        self.emit_terminator("unreachable".to_string());
+
+        self.start_block(&ok_label);
+        let payload_field_ptr = self.fresh_temp("enum.payload.ptr");
+        self.emit_assign(
+            &payload_field_ptr,
+            format!(
+                "getelementptr inbounds {}, ptr {}, i32 0, i32 2",
+                self.llvm_type(&enum_ty),
+                enum_ptr
+            ),
+        );
+        let payload = self.fresh_temp("enum.payload");
+        self.emit_assign(
+            &payload,
+            format!(
+                "load {}, ptr {}",
+                self.llvm_type(&payload_ty),
+                payload_field_ptr
+            ),
+        );
+        self.emit_terminator(format!("br label %{}", end_label));
+
+        self.start_block(&end_label);
+        Ok(Value {
+            repr: payload,
+            ty: payload_ty,
+        })
+    }
+
+    fn emit_enum_variant_value(
+        &mut self,
+        variant: &EnumVariantInfo,
+        payload: Option<&Value>,
+    ) -> Result<Value, String> {
+        let enum_ty = Type::Named(variant.enum_name.clone());
+        let layout = self
+            .enum_layouts
+            .get(&variant.enum_name)
+            .ok_or_else(|| format!("internal error: unknown enum '{}'", variant.enum_name))?;
+
+        if !layout.has_payload {
+            return Ok(Value {
+                repr: variant.discriminant.to_string(),
+                ty: enum_ty,
+            });
+        }
+
+        let enum_ptr = self.create_stack_slot("enum.variant.tmp", &enum_ty);
+        self.emit_line(format!(
+            "store {} zeroinitializer, ptr {}",
+            self.llvm_type(&enum_ty),
+            enum_ptr
+        ));
+
+        let tag_ptr = self.fresh_temp("enum.tag.ptr");
+        self.emit_assign(
+            &tag_ptr,
+            format!(
+                "getelementptr inbounds {}, ptr {}, i32 0, i32 0",
+                self.llvm_type(&enum_ty),
+                enum_ptr
+            ),
+        );
+        self.emit_line(format!(
+            "store i32 {}, ptr {}",
+            variant.discriminant, tag_ptr
+        ));
+
+        if let Some(payload) = payload {
+            let payload_field_ptr = self.fresh_temp("enum.payload.ptr");
+            self.emit_assign(
+                &payload_field_ptr,
+                format!(
+                    "getelementptr inbounds {}, ptr {}, i32 0, i32 2",
+                    self.llvm_type(&enum_ty),
+                    enum_ptr
+                ),
+            );
+            self.emit_line(format!(
+                "store {} {}, ptr {}",
+                self.llvm_type(&payload.ty),
+                payload.repr,
+                payload_field_ptr
+            ));
+        }
+
+        let loaded = self.fresh_temp("enum");
+        self.emit_assign(
+            &loaded,
+            format!("load {}, ptr {}", self.llvm_type(&enum_ty), enum_ptr),
+        );
+        Ok(Value {
+            repr: loaded,
+            ty: enum_ty,
+        })
+    }
+
+    fn emit_enum_tag(&mut self, value: &Value) -> Result<String, String> {
+        let Type::Named(enum_name) = &value.ty else {
+            return Err("internal error: enum tag requested for non-enum value".to_string());
+        };
+
+        let layout = self
+            .enum_layouts
+            .get(enum_name)
+            .ok_or_else(|| format!("internal error: unknown enum '{}'", enum_name))?;
+
+        if !layout.has_payload {
+            return Ok(value.repr.clone());
+        }
+
+        let enum_ptr = self.create_stack_slot("enum.tag.tmp", &value.ty);
+        self.emit_store(value, &enum_ptr);
+        let tag_ptr = self.fresh_temp("enum.tag.ptr");
+        self.emit_assign(
+            &tag_ptr,
+            format!(
+                "getelementptr inbounds {}, ptr {}, i32 0, i32 0",
+                self.llvm_type(&value.ty),
+                enum_ptr
+            ),
+        );
+        let tag = self.fresh_temp("enum.tag");
+        self.emit_assign(&tag, format!("load i32, ptr {}", tag_ptr));
+        Ok(tag)
+    }
+
+    fn extract_variant_designator(
+        &self,
+        expr: &Expr,
+        context: &str,
+    ) -> Result<EnumVariantInfo, String> {
+        let Expr::Var(name) = expr else {
+            return Err(format!(
+                "internal error: {} expects enum variant designator",
+                context
+            ));
+        };
+
+        self.enum_variants.get(name).cloned().ok_or_else(|| {
+            format!(
+                "internal error: {} expects enum variant designator",
+                context
+            )
+        })
     }
 
     fn emit_array_value_as_slice(
@@ -1132,7 +1375,13 @@ impl<'a> FunctionEmitter<'a> {
             Type::Str => self.emit_terminator("ret ptr null".to_string()),
             Type::Ptr(_) => self.emit_terminator("ret ptr null".to_string()),
             Type::Void => self.emit_terminator("ret void".to_string()),
-            Type::Named(name) if self.enum_names.contains(name) => {
+            Type::Named(name)
+                if self
+                    .enum_layouts
+                    .get(name)
+                    .map(|layout| !layout.has_payload)
+                    .unwrap_or(false) =>
+            {
                 self.emit_terminator("ret i32 0".to_string())
             }
             Type::Named(_) | Type::Array(_, _) | Type::Slice(_) => self.emit_terminator(format!(

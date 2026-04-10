@@ -1,4 +1,4 @@
-import "math.mnst";
+import "math.mnst" as math;
 
 fn sum_until(limit: i32) -> i32 {
     let mut i: i32 = 0;
@@ -15,7 +15,7 @@ fn sum_until(limit: i32) -> i32 {
             break;
         }
 
-        sum = add(sum, i);
+        sum = math.add(sum, i);
     }
 
     return sum;

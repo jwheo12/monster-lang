@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use crate::ast::{BinOp, EnumDef, Expr, Function, Program, Stmt, StructDef, Type, UnaryOp};
+use crate::ast::{
+    BinOp, EnumDef, EnumVariant, Expr, Function, ImportDecl, Program, Stmt, StructDef, Type,
+    UnaryOp,
+};
 use crate::token::{Token, TokenKind};
 
 pub struct Parser {
@@ -28,6 +31,29 @@ impl Parser {
 
     fn peek_kind(&self) -> Option<TokenKind> {
         self.tokens.get(self.pos + 1).map(|t| t.kind.clone())
+    }
+
+    fn at_call_start(&self) -> bool {
+        if !self.at(TokenKind::Ident) {
+            return false;
+        }
+
+        let mut pos = self.pos + 1;
+        loop {
+            match self.tokens.get(pos).map(|token| token.kind.clone()) {
+                Some(TokenKind::LParen) => return true,
+                Some(TokenKind::Dot) => {
+                    pos += 1;
+                    if self.tokens.get(pos).map(|token| token.kind.clone())
+                        != Some(TokenKind::Ident)
+                    {
+                        return false;
+                    }
+                    pos += 1;
+                }
+                _ => return false,
+            }
+        }
     }
 
     fn at_index_assign_start(&self) -> bool {
@@ -153,11 +179,17 @@ impl Parser {
         })
     }
 
-    fn parse_import(&mut self) -> Result<String, String> {
+    fn parse_import(&mut self) -> Result<ImportDecl, String> {
         self.expect(TokenKind::Import)?;
         let path = self.expect(TokenKind::Str)?.lexeme;
+        let alias = if self.at(TokenKind::As) {
+            self.expect(TokenKind::As)?;
+            Some(self.expect_ident()?.lexeme)
+        } else {
+            None
+        };
         self.expect(TokenKind::Semicolon)?;
-        Ok(path)
+        Ok(ImportDecl { path, alias })
     }
 
     fn parse_struct(&mut self) -> Result<StructDef, String> {
@@ -191,7 +223,19 @@ impl Parser {
 
         let mut variants = Vec::new();
         while !self.at(TokenKind::RBrace) {
-            variants.push(self.expect_ident()?.lexeme);
+            let variant_name = self.expect_ident()?.lexeme;
+            let payload = if self.at(TokenKind::LParen) {
+                self.expect(TokenKind::LParen)?;
+                let payload_ty = self.parse_type()?;
+                self.expect(TokenKind::RParen)?;
+                Some(payload_ty)
+            } else {
+                None
+            };
+            variants.push(EnumVariant {
+                name: variant_name,
+                payload,
+            });
 
             if self.at(TokenKind::Comma) {
                 self.expect(TokenKind::Comma)?;
@@ -333,7 +377,7 @@ impl Parser {
             self.parse_assign_field_stmt()
         } else if self.at(TokenKind::Ident) && self.peek_kind() == Some(TokenKind::Equal) {
             self.parse_assign_stmt()
-        } else if self.at(TokenKind::Ident) && self.peek_kind() == Some(TokenKind::LParen) {
+        } else if self.at_call_start() {
             self.parse_call_stmt()
         } else {
             let token = self.current().clone();
@@ -694,7 +738,7 @@ impl Parser {
     }
 
     fn parse_postfix(&mut self) -> Result<Expr, String> {
-        let mut expr = if self.at(TokenKind::Ident) && self.peek_kind() == Some(TokenKind::LParen) {
+        let mut expr = if self.at_call_start() {
             self.parse_call()?
         } else if self.at_struct_literal_start() {
             self.parse_struct_literal()?
@@ -733,7 +777,7 @@ impl Parser {
     }
 
     fn parse_call(&mut self) -> Result<Expr, String> {
-        let name = self.expect_ident()?.lexeme;
+        let name = self.parse_call_name()?;
         self.expect(TokenKind::LParen)?;
 
         let mut args = Vec::new();
@@ -752,6 +796,17 @@ impl Parser {
         self.expect(TokenKind::RParen)?;
 
         Ok(Expr::Call { name, args })
+    }
+
+    fn parse_call_name(&mut self) -> Result<String, String> {
+        let mut segments = vec![self.expect_ident()?.lexeme];
+
+        while self.at(TokenKind::Dot) {
+            self.expect(TokenKind::Dot)?;
+            segments.push(self.expect_ident()?.lexeme);
+        }
+
+        Ok(segments.join("."))
     }
 
     fn parse_struct_literal(&mut self) -> Result<Expr, String> {
@@ -856,7 +911,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::Parser;
-    use crate::ast::{BinOp, Expr, Stmt, Type, UnaryOp};
+    use crate::ast::{BinOp, Expr, ImportDecl, Stmt, Type, UnaryOp};
     use crate::lexer::Lexer;
 
     fn parse_source(source: &str) -> crate::ast::Program {
@@ -878,7 +933,34 @@ mod tests {
             "#,
         );
 
-        assert_eq!(program.imports, vec!["std/io.mnst".to_string()]);
+        assert_eq!(
+            program.imports,
+            vec![ImportDecl {
+                path: "std/io.mnst".to_string(),
+                alias: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn parses_aliased_import_declaration() {
+        let program = parse_source(
+            r#"
+            import "std/io.mnst" as io;
+
+            fn main() -> i32 {
+                return 0;
+            }
+            "#,
+        );
+
+        assert_eq!(
+            program.imports,
+            vec![ImportDecl {
+                path: "std/io.mnst".to_string(),
+                alias: Some("io".to_string()),
+            }]
+        );
     }
 
     #[test]
@@ -900,9 +982,43 @@ mod tests {
         assert_eq!(program.enums.len(), 1);
         assert_eq!(program.enums[0].name, "Color");
         assert_eq!(
-            program.enums[0].variants,
-            vec!["Red".to_string(), "Green".to_string(), "Blue".to_string()]
+            program.enums[0]
+                .variants
+                .iter()
+                .map(|variant| (variant.name.clone(), variant.payload.clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Red".to_string(), None),
+                ("Green".to_string(), None),
+                ("Blue".to_string(), None)
+            ]
         );
+    }
+
+    #[test]
+    fn parses_payload_enum_definition() {
+        let program = parse_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Name(str),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                return 0;
+            }
+            "#,
+        );
+
+        assert_eq!(program.enums.len(), 1);
+        assert_eq!(program.enums[0].name, "Token");
+        assert_eq!(program.enums[0].variants[0].name, "Int");
+        assert_eq!(program.enums[0].variants[0].payload, Some(Type::I32));
+        assert_eq!(program.enums[0].variants[1].name, "Name");
+        assert_eq!(program.enums[0].variants[1].payload, Some(Type::Str));
+        assert_eq!(program.enums[0].variants[2].name, "Eof");
+        assert_eq!(program.enums[0].variants[2].payload, None);
     }
 
     #[test]
@@ -1099,6 +1215,29 @@ mod tests {
         };
 
         assert!(matches!(args.as_slice(), [Expr::Str(value)] if value == "Hello, World!"));
+    }
+
+    #[test]
+    fn parses_qualified_call_statement() {
+        let program = parse_source(
+            r#"
+            fn main() -> i32 {
+                math.print(1);
+                return 0;
+            }
+            "#,
+        );
+
+        let body = program.functions[0]
+            .body
+            .as_ref()
+            .expect("expected function body");
+        let Stmt::Expr(Expr::Call { name, args }) = &body[0] else {
+            panic!("expected qualified call statement");
+        };
+
+        assert_eq!(name, "math.print");
+        assert!(matches!(args.as_slice(), [Expr::Int(1)]));
     }
 
     #[test]
@@ -1383,6 +1522,28 @@ mod tests {
             &args[0],
             Expr::Call { name, args } if name == "slice" && matches!(args.as_slice(), [Expr::Var(var)] if var == "values")
         ));
+    }
+
+    #[test]
+    fn parses_qualified_call_expression() {
+        let program = parse_source(
+            r#"
+            fn main() -> i32 {
+                return math.add(3, 4);
+            }
+            "#,
+        );
+
+        let body = program.functions[0]
+            .body
+            .as_ref()
+            .expect("expected function body");
+        let Stmt::Return(Some(Expr::Call { name, args })) = &body[0] else {
+            panic!("expected qualified call return");
+        };
+
+        assert_eq!(name, "math.add");
+        assert!(matches!(args.as_slice(), [Expr::Int(3), Expr::Int(4)]));
     }
 
     #[test]

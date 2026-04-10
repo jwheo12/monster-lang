@@ -1,0 +1,19 @@
+extern fn calloc(count: usize, size: usize) -> *u8;
+extern fn free(ptr: *u8) -> void;
+
+fn main() -> i32 {
+    let src: str = "Monster";
+    let len: usize = strlen(src);
+    let buf: *u8 = calloc(len + (1 as usize), sizeof(u8));
+
+    memcpy(buf, src as *u8, len + (1 as usize));
+
+    if str_eq(src, buf as str) {
+        print_ln_str(buf as str);
+    }
+
+    print_ln_i32(memcmp(buf, src as *u8, len));
+
+    free(buf);
+    return len as i32;
+}

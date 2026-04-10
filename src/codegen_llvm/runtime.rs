@@ -69,6 +69,42 @@ pub(super) fn builtin_signatures() -> HashMap<String, FunctionSig> {
             ret_type: Type::Void,
         },
     );
+    sigs.insert(
+        "strlen".to_string(),
+        FunctionSig {
+            params: vec![Type::Str],
+            ret_type: Type::USize,
+        },
+    );
+    sigs.insert(
+        "memcmp".to_string(),
+        FunctionSig {
+            params: vec![
+                Type::Ptr(Box::new(Type::U8)),
+                Type::Ptr(Box::new(Type::U8)),
+                Type::USize,
+            ],
+            ret_type: Type::I32,
+        },
+    );
+    sigs.insert(
+        "memcpy".to_string(),
+        FunctionSig {
+            params: vec![
+                Type::Ptr(Box::new(Type::U8)),
+                Type::Ptr(Box::new(Type::U8)),
+                Type::USize,
+            ],
+            ret_type: Type::Void,
+        },
+    );
+    sigs.insert(
+        "str_eq".to_string(),
+        FunctionSig {
+            params: vec![Type::Str, Type::Str],
+            ret_type: Type::Bool,
+        },
+    );
     sigs
 }
 
@@ -88,6 +124,7 @@ pub(super) fn emit_runtime_prelude() -> String {
         "@.str.file_alloc_error = private unnamed_addr constant [54 x i8] c\"Monster runtime error: failed to allocate file buffer\\00\"",
         "@.str.file_read_error = private unnamed_addr constant [43 x i8] c\"Monster runtime error: failed to read file\\00\"",
         "@.str.file_write_error = private unnamed_addr constant [44 x i8] c\"Monster runtime error: failed to write file\\00\"",
+        "@.str.enum_payload_error = private unnamed_addr constant [49 x i8] c\"Monster runtime error: wrong enum payload access\\00\"",
         "",
         "declare i32 @printf(ptr, ...)",
         "declare i32 @puts(ptr)",
@@ -99,6 +136,9 @@ pub(super) fn emit_runtime_prelude() -> String {
         "declare i64 @fread(ptr, i64, i64, ptr)",
         "declare i64 @fwrite(ptr, i64, i64, ptr)",
         "declare ptr @calloc(i64, i64)",
+        "declare i64 @strlen(ptr)",
+        "declare i32 @memcmp(ptr, ptr, i64)",
+        "declare ptr @memcpy(ptr, ptr, i64)",
         "declare void @exit(i32)",
         "",
         "define internal void @__monster_builtin_print_i32(i32 %value) {",
@@ -243,6 +283,40 @@ pub(super) fn emit_runtime_prelude() -> String {
         "  ret void",
         "}",
         "",
+        "define internal i64 @__monster_builtin_strlen(ptr %value) {",
+        "entry:",
+        "  %len.0 = call i64 @strlen(ptr %value)",
+        "  ret i64 %len.0",
+        "}",
+        "",
+        "define internal i32 @__monster_builtin_memcmp(ptr %lhs, ptr %rhs, i64 %len) {",
+        "entry:",
+        "  %cmp.0 = call i32 @memcmp(ptr %lhs, ptr %rhs, i64 %len)",
+        "  ret i32 %cmp.0",
+        "}",
+        "",
+        "define internal void @__monster_builtin_memcpy(ptr %dst, ptr %src, i64 %len) {",
+        "entry:",
+        "  %copy.0 = call ptr @memcpy(ptr %dst, ptr %src, i64 %len)",
+        "  ret void",
+        "}",
+        "",
+        "define internal i1 @__monster_builtin_str_eq(ptr %lhs, ptr %rhs) {",
+        "entry:",
+        "  %lhs.len = call i64 @strlen(ptr %lhs)",
+        "  %rhs.len = call i64 @strlen(ptr %rhs)",
+        "  %same.len = icmp eq i64 %lhs.len, %rhs.len",
+        "  br i1 %same.len, label %compare, label %not.equal",
+        "",
+        "compare:",
+        "  %cmp.1 = call i32 @memcmp(ptr %lhs, ptr %rhs, i64 %lhs.len)",
+        "  %same.bytes = icmp eq i32 %cmp.1, 0",
+        "  ret i1 %same.bytes",
+        "",
+        "not.equal:",
+        "  ret i1 0",
+        "}",
+        "",
     ]
     .join("\n")
 }
@@ -260,6 +334,9 @@ pub(super) fn runtime_declared_function(name: &str) -> bool {
             | "fread"
             | "fwrite"
             | "calloc"
+            | "strlen"
+            | "memcmp"
+            | "memcpy"
             | "exit"
     )
 }
@@ -275,6 +352,10 @@ pub(super) fn llvm_function_name(name: &str) -> String {
         "read_i32" => "@__monster_builtin_read_i32".to_string(),
         "read_file" => "@__monster_builtin_read_file".to_string(),
         "write_file" => "@__monster_builtin_write_file".to_string(),
-        _ => format!("@{name}"),
+        "strlen" => "@__monster_builtin_strlen".to_string(),
+        "memcmp" => "@__monster_builtin_memcmp".to_string(),
+        "memcpy" => "@__monster_builtin_memcpy".to_string(),
+        "str_eq" => "@__monster_builtin_str_eq".to_string(),
+        _ => format!("@{}", name.replace('.', "__")),
     }
 }

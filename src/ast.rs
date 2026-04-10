@@ -117,6 +117,18 @@ pub enum Stmt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumVariant {
+    pub name: String,
+    pub payload: Option<Type>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportDecl {
+    pub path: String,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructDef {
     pub name: String,
     pub fields: Vec<(String, Type)>,
@@ -125,7 +137,7 @@ pub struct StructDef {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnumDef {
     pub name: String,
-    pub variants: Vec<String>,
+    pub variants: Vec<EnumVariant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,7 +151,7 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
-    pub imports: Vec<String>,
+    pub imports: Vec<ImportDecl>,
     pub enums: Vec<EnumDef>,
     pub structs: Vec<StructDef>,
     pub functions: Vec<Function>,

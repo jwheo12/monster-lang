@@ -1,0 +1,19 @@
+enum Token {
+    Int(i32),
+    Name(str),
+    Eof,
+}
+
+fn unwrap_int(token: Token) -> i32 {
+    if is(token, Int) {
+        return payload(token, Int);
+    } else {
+        return 0;
+    }
+}
+
+fn main() -> i32 {
+    let token: Token = Int(42);
+    print_ln_i32(unwrap_int(token));
+    return unwrap_int(token);
+}

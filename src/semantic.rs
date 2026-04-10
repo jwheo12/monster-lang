@@ -25,11 +25,14 @@ struct StructInfo {
 }
 
 #[derive(Clone)]
-struct EnumInfo;
+struct EnumInfo {
+    has_payload: bool,
+}
 
 #[derive(Clone)]
 struct EnumVariantInfo {
     enum_name: String,
+    payload_ty: Option<Type>,
 }
 
 struct Analyzer {
@@ -63,8 +66,6 @@ impl Analyzer {
             {
                 return Err(format!("duplicate type '{}'", enum_def.name));
             }
-
-            self.enums.insert(enum_def.name.clone(), EnumInfo);
         }
 
         for struct_def in &program.structs {
@@ -90,29 +91,37 @@ impl Analyzer {
             }
 
             let mut seen_variants = HashMap::new();
+            let mut has_payload = false;
             for variant in &enum_def.variants {
-                if seen_variants.insert(variant.clone(), ()).is_some() {
+                if seen_variants.insert(variant.name.clone(), ()).is_some() {
                     return Err(format!(
                         "duplicate variant '{}' in enum '{}'",
-                        variant, enum_def.name
+                        variant.name, enum_def.name
                     ));
+                }
+
+                if let Some(payload_ty) = &variant.payload {
+                    self.ensure_value_type(payload_ty, "enum variant payload")?;
+                    has_payload = true;
                 }
 
                 if self
                     .enum_variants
                     .insert(
-                        variant.clone(),
+                        variant.name.clone(),
                         EnumVariantInfo {
                             enum_name: enum_def.name.clone(),
+                            payload_ty: variant.payload.clone(),
                         },
                     )
                     .is_some()
                 {
-                    return Err(format!("duplicate enum variant '{}'", variant));
+                    return Err(format!("duplicate enum variant '{}'", variant.name));
                 }
             }
 
-            self.enums.insert(enum_def.name.clone(), EnumInfo);
+            self.enums
+                .insert(enum_def.name.clone(), EnumInfo { has_payload });
         }
 
         for struct_def in &program.structs {
@@ -146,6 +155,13 @@ impl Analyzer {
                 params: func.params.iter().map(|(_, ty)| ty.clone()).collect(),
                 ret_type: func.ret_type.clone(),
             };
+
+            if self.enum_variants.contains_key(&func.name) {
+                return Err(format!(
+                    "function '{}' conflicts with enum variant of the same name",
+                    func.name
+                ));
+            }
 
             if self.functions.insert(func.name.clone(), sig).is_some() {
                 return Err(format!("duplicate function '{}'", func.name));
@@ -407,7 +423,11 @@ impl Analyzer {
                 if let Some(var) = self.lookup_var(name) {
                     Ok(var.ty.clone())
                 } else if let Some(variant) = self.enum_variants.get(name) {
-                    Ok(Type::Named(variant.enum_name.clone()))
+                    if variant.payload_ty.is_some() {
+                        Err(format!("enum variant '{}' requires a payload value", name))
+                    } else {
+                        Ok(Type::Named(variant.enum_name.clone()))
+                    }
                 } else {
                     Err(format!("use of undeclared variable '{name}'"))
                 }
@@ -515,6 +535,43 @@ impl Analyzer {
                 if name == "slice" {
                     return self.analyze_slice_call(args);
                 }
+                if name == "is" {
+                    return self.analyze_is_call(args);
+                }
+                if name == "payload" {
+                    return self.analyze_payload_call(args);
+                }
+                if let Some(variant) = self.enum_variants.get(name).cloned() {
+                    return match variant.payload_ty {
+                        Some(payload_ty) => {
+                            if args.len() != 1 {
+                                return Err(format!(
+                                    "enum variant '{}' expects 1 payload arg, got {}",
+                                    name,
+                                    args.len()
+                                ));
+                            }
+
+                            let actual_ty = self.analyze_expr(&args[0])?;
+                            self.expect_type(
+                                &actual_ty,
+                                &payload_ty,
+                                &format!("payload for variant '{name}'"),
+                            )?;
+                            Ok(Type::Named(variant.enum_name))
+                        }
+                        None => {
+                            if !args.is_empty() {
+                                return Err(format!(
+                                    "enum variant '{}' expects 0 args, got {}",
+                                    name,
+                                    args.len()
+                                ));
+                            }
+                            Ok(Type::Named(variant.enum_name))
+                        }
+                    };
+                }
 
                 let sig = self
                     .functions
@@ -559,6 +616,7 @@ impl Analyzer {
                     BinOp::Eq | BinOp::Ne => {
                         if matches!(left_ty, Type::Array(_, _) | Type::Slice(_))
                             || self.is_struct_type(&left_ty)
+                            || self.is_payload_enum_type(&left_ty)
                         {
                             return Err(
                                 "aggregate values cannot be compared with == or !=".to_string()
@@ -799,6 +857,42 @@ impl Analyzer {
                 ret_type: Type::Void,
             },
         );
+        self.functions.insert(
+            "strlen".to_string(),
+            FunctionSig {
+                params: vec![Type::Str],
+                ret_type: Type::USize,
+            },
+        );
+        self.functions.insert(
+            "memcmp".to_string(),
+            FunctionSig {
+                params: vec![
+                    Type::Ptr(Box::new(Type::U8)),
+                    Type::Ptr(Box::new(Type::U8)),
+                    Type::USize,
+                ],
+                ret_type: Type::I32,
+            },
+        );
+        self.functions.insert(
+            "memcpy".to_string(),
+            FunctionSig {
+                params: vec![
+                    Type::Ptr(Box::new(Type::U8)),
+                    Type::Ptr(Box::new(Type::U8)),
+                    Type::USize,
+                ],
+                ret_type: Type::Void,
+            },
+        );
+        self.functions.insert(
+            "str_eq".to_string(),
+            FunctionSig {
+                params: vec![Type::Str, Type::Str],
+                ret_type: Type::Bool,
+            },
+        );
     }
 
     fn analyze_len_call(&mut self, args: &[Expr]) -> Result<Type, String> {
@@ -835,8 +929,83 @@ impl Analyzer {
         }
     }
 
+    fn analyze_is_call(&mut self, args: &[Expr]) -> Result<Type, String> {
+        if args.len() != 2 {
+            return Err(format!("function 'is' expects 2 args, got {}", args.len()));
+        }
+
+        let enum_ty = self.analyze_expr(&args[0])?;
+        let variant = self.extract_variant_designator(&args[1], "function 'is'")?;
+
+        self.expect_type(
+            &enum_ty,
+            &Type::Named(variant.enum_name.clone()),
+            "argument 1 of 'is'",
+        )?;
+
+        Ok(Type::Bool)
+    }
+
+    fn analyze_payload_call(&mut self, args: &[Expr]) -> Result<Type, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "function 'payload' expects 2 args, got {}",
+                args.len()
+            ));
+        }
+
+        let enum_ty = self.analyze_expr(&args[0])?;
+        let variant = self.extract_variant_designator(&args[1], "function 'payload'")?;
+
+        self.expect_type(
+            &enum_ty,
+            &Type::Named(variant.enum_name.clone()),
+            "argument 1 of 'payload'",
+        )?;
+
+        variant.payload_ty.ok_or_else(|| {
+            format!(
+                "variant '{}' of enum '{}' has no payload",
+                match &args[1] {
+                    Expr::Var(name) => name,
+                    _ => unreachable!("extract_variant_designator validated shape"),
+                },
+                type_name(&enum_ty)
+            )
+        })
+    }
+
+    fn extract_variant_designator(
+        &self,
+        expr: &Expr,
+        context: &str,
+    ) -> Result<EnumVariantInfo, String> {
+        let Expr::Var(name) = expr else {
+            return Err(format!(
+                "{context} expects an enum variant name as argument 2"
+            ));
+        };
+
+        self.enum_variants
+            .get(name)
+            .cloned()
+            .ok_or_else(|| format!("{context} expects an enum variant name as argument 2"))
+    }
+
     fn is_struct_type(&self, ty: &Type) -> bool {
         matches!(ty, Type::Named(name) if self.structs.contains_key(name))
+    }
+
+    fn is_payload_enum_type(&self, ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Named(name)
+                if self
+                    .enums
+                    .get(name)
+                    .map(|info| info.has_payload)
+                    .unwrap_or(false)
+        )
     }
 }
 
@@ -1135,6 +1304,33 @@ mod tests {
                 write_file("target/mst/exam.copy", data, len);
                 free(data);
                 return len as i32;
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_string_and_byte_utility_builtins() {
+        let result = analyze_source(
+            r#"
+            extern fn calloc(count: usize, size: usize) -> *u8;
+            extern fn free(ptr: *u8) -> void;
+
+            fn main() -> i32 {
+                let src: str = "Monster";
+                let len: usize = strlen(src);
+                let buf: *u8 = calloc(len + (1 as usize), sizeof(u8));
+                memcpy(buf, src as *u8, len + (1 as usize));
+
+                if str_eq(src, buf as str) && memcmp(buf, src as *u8, len) == 0 {
+                    free(buf);
+                    return len as i32;
+                }
+
+                free(buf);
+                return 0;
             }
             "#,
         );
@@ -1474,6 +1670,78 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_payload_enums_with_is_and_payload() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Name(str),
+                Eof,
+            }
+
+            fn unwrap_int(token: Token) -> i32 {
+                if is(token, Int) {
+                    return payload(token, Int);
+                } else {
+                    return 0;
+                }
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int(42);
+                return unwrap_int(token);
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_bare_use_of_payload_variant() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int;
+                return 0;
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("variant 'Int' requires a payload")
+        ));
+    }
+
+    #[test]
+    fn rejects_payload_access_on_variant_without_payload() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Eof;
+                return payload(token, Eof);
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("has no payload")
+        ));
     }
 
     #[test]

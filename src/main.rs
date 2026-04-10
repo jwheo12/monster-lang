@@ -9,7 +9,7 @@ use codegen_llvm::emit_program as emit_llvm_program;
 use lexer::Lexer;
 use parser::Parser;
 use semantic::analyze_program;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,6 +31,12 @@ struct BuildArgs {
 struct RunArgs {
     build: BuildArgs,
     program_args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct LoadKey {
+    path: PathBuf,
+    namespace: Option<String>,
 }
 
 fn main() {
@@ -198,10 +204,19 @@ fn parse_run_args(args: impl Iterator<Item = String>) -> Result<RunArgs, String>
 fn load_program(path: &str) -> Result<ast::Program, String> {
     let canonical =
         fs::canonicalize(path).map_err(|e| format!("failed to resolve '{}': {}", path, e))?;
+    let root_dir = canonical
+        .parent()
+        .ok_or_else(|| {
+            format!(
+                "failed to determine parent directory of '{}'",
+                canonical.display()
+            )
+        })?
+        .to_path_buf();
 
     let mut loaded = HashSet::new();
     let mut active = Vec::new();
-    let program = load_program_recursive(&canonical, &mut loaded, &mut active)?;
+    let program = load_program_recursive(&canonical, None, &root_dir, &mut loaded, &mut active)?;
 
     analyze_program(&program).map_err(|e| format!("semantic error: {e}"))?;
 
@@ -210,7 +225,9 @@ fn load_program(path: &str) -> Result<ast::Program, String> {
 
 fn load_program_recursive(
     path: &Path,
-    loaded: &mut HashSet<PathBuf>,
+    namespace: Option<String>,
+    root_dir: &Path,
+    loaded: &mut HashSet<LoadKey>,
     active: &mut Vec<PathBuf>,
 ) -> Result<ast::Program, String> {
     if let Some(index) = active.iter().position(|current| current == path) {
@@ -222,13 +239,18 @@ fn load_program_recursive(
         return Err(format!("import cycle detected: {}", cycle.join(" -> ")));
     }
 
-    if loaded.contains(path) {
+    let key = LoadKey {
+        path: path.to_path_buf(),
+        namespace: namespace.clone(),
+    };
+
+    if loaded.contains(&key) {
         return Ok(empty_program());
     }
 
     active.push(path.to_path_buf());
     let parsed = parse_program_from_file(path)?;
-    loaded.insert(path.to_path_buf());
+    loaded.insert(key);
 
     let mut merged = empty_program();
     let base_dir = path.parent().ok_or_else(|| {
@@ -237,27 +259,59 @@ fn load_program_recursive(
             path.display()
         )
     })?;
+    let mut module_aliases = HashMap::new();
+    let mut visible_imported_functions = HashMap::new();
 
     for import in &parsed.imports {
-        let import_path = base_dir.join(import);
+        let import_path = base_dir.join(&import.path);
         let canonical_import = fs::canonicalize(&import_path).map_err(|e| {
             format!(
                 "failed to resolve import '{}' from '{}': {}",
-                import,
+                import.path,
                 path.display(),
                 e
             )
         })?;
 
-        let imported = load_program_recursive(&canonical_import, loaded, active)?;
+        let child_namespace = match &import.alias {
+            Some(_) => Some(module_name_for_path(&canonical_import, root_dir)?),
+            None => namespace.clone(),
+        };
+
+        let imported = load_program_recursive(
+            &canonical_import,
+            child_namespace.clone(),
+            root_dir,
+            loaded,
+            active,
+        )?;
+
+        if let Some(alias) = &import.alias {
+            if let Some(child_namespace) = child_namespace {
+                module_aliases.insert(alias.clone(), child_namespace);
+            }
+        } else {
+            collect_visible_imported_functions(
+                namespace.as_deref(),
+                &imported.functions,
+                &mut visible_imported_functions,
+            );
+        }
+
         merged.enums.extend(imported.enums);
         merged.structs.extend(imported.structs);
         merged.functions.extend(imported.functions);
     }
 
-    merged.enums.extend(parsed.enums);
-    merged.structs.extend(parsed.structs);
-    merged.functions.extend(parsed.functions);
+    let rewritten = rewrite_program(
+        parsed,
+        namespace.as_deref(),
+        &module_aliases,
+        &visible_imported_functions,
+    );
+    merged.enums.extend(rewritten.enums);
+    merged.structs.extend(rewritten.structs);
+    merged.functions.extend(rewritten.functions);
 
     active.pop();
     Ok(merged)
@@ -283,6 +337,305 @@ fn empty_program() -> ast::Program {
         structs: Vec::new(),
         functions: Vec::new(),
     }
+}
+
+fn module_name_for_path(path: &Path, root_dir: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root_dir).unwrap_or(path);
+    let mut parts = Vec::new();
+
+    for component in relative.components() {
+        if let std::path::Component::Normal(segment) = component {
+            let segment = segment
+                .to_str()
+                .ok_or_else(|| format!("non-utf8 import path '{}'", path.display()))?;
+            let trimmed = segment.strip_suffix(".mnst").unwrap_or(segment);
+            if !trimmed.is_empty() {
+                parts.push(
+                    trimmed
+                        .chars()
+                        .map(|ch| {
+                            if ch.is_ascii_alphanumeric() || ch == '_' {
+                                ch
+                            } else {
+                                '_'
+                            }
+                        })
+                        .collect::<String>(),
+                );
+            }
+        }
+    }
+
+    if parts.is_empty() {
+        return Err(format!(
+            "failed to derive module name from import '{}'",
+            path.display()
+        ));
+    }
+
+    Ok(parts.join("."))
+}
+
+fn collect_visible_imported_functions(
+    namespace: Option<&str>,
+    functions: &[ast::Function],
+    visible: &mut HashMap<String, String>,
+) {
+    for function in functions {
+        if let Some(simple_name) = visible_function_name(namespace, &function.name) {
+            visible.insert(simple_name, function.name.clone());
+        }
+    }
+}
+
+fn visible_function_name(namespace: Option<&str>, canonical_name: &str) -> Option<String> {
+    match namespace {
+        Some(namespace) => {
+            let prefix = format!("{namespace}.");
+            let remainder = canonical_name.strip_prefix(&prefix)?;
+            if remainder.contains('.') {
+                None
+            } else {
+                Some(remainder.to_string())
+            }
+        }
+        None => (!canonical_name.contains('.')).then(|| canonical_name.to_string()),
+    }
+}
+
+fn rewrite_program(
+    program: ast::Program,
+    namespace: Option<&str>,
+    module_aliases: &HashMap<String, String>,
+    visible_imported_functions: &HashMap<String, String>,
+) -> ast::Program {
+    let mut visible_functions = visible_imported_functions.clone();
+    for function in &program.functions {
+        visible_functions.insert(
+            function.name.clone(),
+            qualify_function_name(namespace, &function.name),
+        );
+    }
+
+    ast::Program {
+        imports: Vec::new(),
+        enums: program.enums,
+        structs: program.structs,
+        functions: program
+            .functions
+            .into_iter()
+            .map(|function| rewrite_function(function, module_aliases, &visible_functions))
+            .collect(),
+    }
+}
+
+fn rewrite_function(
+    mut function: ast::Function,
+    module_aliases: &HashMap<String, String>,
+    visible_functions: &HashMap<String, String>,
+) -> ast::Function {
+    let original_name = function.name.clone();
+
+    if let Some(body) = function.body.take() {
+        function.body = Some(
+            body.into_iter()
+                .map(|stmt| rewrite_stmt(stmt, module_aliases, visible_functions))
+                .collect(),
+        );
+    }
+
+    if let Some(canonical_name) = visible_functions.get(&original_name) {
+        function.name = canonical_name.clone();
+    }
+
+    function
+}
+
+fn rewrite_stmt(
+    stmt: ast::Stmt,
+    module_aliases: &HashMap<String, String>,
+    visible_functions: &HashMap<String, String>,
+) -> ast::Stmt {
+    match stmt {
+        ast::Stmt::Let {
+            name,
+            ty,
+            mutable,
+            value,
+        } => ast::Stmt::Let {
+            name,
+            ty,
+            mutable,
+            value: rewrite_expr(value, module_aliases, visible_functions),
+        },
+        ast::Stmt::Assign { name, value } => ast::Stmt::Assign {
+            name,
+            value: rewrite_expr(value, module_aliases, visible_functions),
+        },
+        ast::Stmt::AssignIndex {
+            name,
+            indices,
+            value,
+        } => ast::Stmt::AssignIndex {
+            name,
+            indices: indices
+                .into_iter()
+                .map(|expr| rewrite_expr(expr, module_aliases, visible_functions))
+                .collect(),
+            value: rewrite_expr(value, module_aliases, visible_functions),
+        },
+        ast::Stmt::AssignField {
+            name,
+            fields,
+            value,
+        } => ast::Stmt::AssignField {
+            name,
+            fields,
+            value: rewrite_expr(value, module_aliases, visible_functions),
+        },
+        ast::Stmt::AssignDeref { target, value } => ast::Stmt::AssignDeref {
+            target: rewrite_expr(target, module_aliases, visible_functions),
+            value: rewrite_expr(value, module_aliases, visible_functions),
+        },
+        ast::Stmt::Expr(expr) => {
+            ast::Stmt::Expr(rewrite_expr(expr, module_aliases, visible_functions))
+        }
+        ast::Stmt::If {
+            condition,
+            then_body,
+            else_body,
+        } => ast::Stmt::If {
+            condition: rewrite_expr(condition, module_aliases, visible_functions),
+            then_body: then_body
+                .into_iter()
+                .map(|stmt| rewrite_stmt(stmt, module_aliases, visible_functions))
+                .collect(),
+            else_body: else_body.map(|body| {
+                body.into_iter()
+                    .map(|stmt| rewrite_stmt(stmt, module_aliases, visible_functions))
+                    .collect()
+            }),
+        },
+        ast::Stmt::While { condition, body } => ast::Stmt::While {
+            condition: rewrite_expr(condition, module_aliases, visible_functions),
+            body: body
+                .into_iter()
+                .map(|stmt| rewrite_stmt(stmt, module_aliases, visible_functions))
+                .collect(),
+        },
+        ast::Stmt::Return(expr) => ast::Stmt::Return(
+            expr.map(|expr| rewrite_expr(expr, module_aliases, visible_functions)),
+        ),
+        ast::Stmt::Break | ast::Stmt::Continue => stmt,
+    }
+}
+
+fn rewrite_expr(
+    expr: ast::Expr,
+    module_aliases: &HashMap<String, String>,
+    visible_functions: &HashMap<String, String>,
+) -> ast::Expr {
+    match expr {
+        ast::Expr::ArrayLiteral(elements) => ast::Expr::ArrayLiteral(
+            elements
+                .into_iter()
+                .map(|expr| rewrite_expr(expr, module_aliases, visible_functions))
+                .collect(),
+        ),
+        ast::Expr::StructLiteral { name, fields } => ast::Expr::StructLiteral {
+            name,
+            fields: fields
+                .into_iter()
+                .map(|(field, expr)| (field, rewrite_expr(expr, module_aliases, visible_functions)))
+                .collect(),
+        },
+        ast::Expr::FieldAccess { base, field } => ast::Expr::FieldAccess {
+            base: Box::new(rewrite_expr(*base, module_aliases, visible_functions)),
+            field,
+        },
+        ast::Expr::Index { base, index } => ast::Expr::Index {
+            base: Box::new(rewrite_expr(*base, module_aliases, visible_functions)),
+            index: Box::new(rewrite_expr(*index, module_aliases, visible_functions)),
+        },
+        ast::Expr::Call { name, args } => ast::Expr::Call {
+            name: rewrite_call_name(&name, module_aliases, visible_functions),
+            args: args
+                .into_iter()
+                .map(|expr| rewrite_expr(expr, module_aliases, visible_functions))
+                .collect(),
+        },
+        ast::Expr::Binary { op, left, right } => ast::Expr::Binary {
+            op,
+            left: Box::new(rewrite_expr(*left, module_aliases, visible_functions)),
+            right: Box::new(rewrite_expr(*right, module_aliases, visible_functions)),
+        },
+        ast::Expr::Unary { op, expr } => ast::Expr::Unary {
+            op,
+            expr: Box::new(rewrite_expr(*expr, module_aliases, visible_functions)),
+        },
+        ast::Expr::Cast { expr, ty } => ast::Expr::Cast {
+            expr: Box::new(rewrite_expr(*expr, module_aliases, visible_functions)),
+            ty,
+        },
+        ast::Expr::Int(_)
+        | ast::Expr::Bool(_)
+        | ast::Expr::Str(_)
+        | ast::Expr::Var(_)
+        | ast::Expr::SizeOf(_) => expr,
+    }
+}
+
+fn rewrite_call_name(
+    name: &str,
+    module_aliases: &HashMap<String, String>,
+    visible_functions: &HashMap<String, String>,
+) -> String {
+    if is_loader_builtin_function(name) {
+        return name.to_string();
+    }
+
+    if let Some((alias, remainder)) = name.split_once('.') {
+        if let Some(module_name) = module_aliases.get(alias) {
+            return format!("{module_name}.{remainder}");
+        }
+
+        return name.to_string();
+    }
+
+    visible_functions
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| name.to_string())
+}
+
+fn qualify_function_name(namespace: Option<&str>, name: &str) -> String {
+    match namespace {
+        Some(namespace) => format!("{namespace}.{name}"),
+        None => name.to_string(),
+    }
+}
+
+fn is_loader_builtin_function(name: &str) -> bool {
+    matches!(
+        name,
+        "len"
+            | "slice"
+            | "is"
+            | "payload"
+            | "print_i32"
+            | "print_bool"
+            | "print_str"
+            | "print_ln_i32"
+            | "print_ln_bool"
+            | "print_ln_str"
+            | "read_i32"
+            | "read_file"
+            | "write_file"
+            | "strlen"
+            | "memcmp"
+            | "memcpy"
+            | "str_eq"
+    )
 }
 
 fn build_to_binary(input: &str, mode: BuildMode) -> Result<PathBuf, String> {
@@ -591,6 +944,51 @@ mod tests {
         assert_eq!(program.functions.len(), 2);
         assert_eq!(program.functions[0].name, "add");
         assert_eq!(program.functions[1].name, "main");
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn loads_aliased_imports_with_namespaced_functions() {
+        let temp_dir = unique_temp_dir("monster-modules");
+        fs::create_dir_all(temp_dir.join("lib")).unwrap();
+
+        fs::write(
+            temp_dir.join("lib").join("math.mnst"),
+            r#"
+            fn helper(value: i32) -> i32 {
+                return value + 1;
+            }
+
+            fn add(a: i32, b: i32) -> i32 {
+                return helper(a + b);
+            }
+            "#,
+        )
+        .unwrap();
+
+        fs::write(
+            temp_dir.join("main.mnst"),
+            r#"
+            import "lib/math.mnst" as math;
+
+            fn main() -> i32 {
+                return math.add(3, 4);
+            }
+            "#,
+        )
+        .unwrap();
+
+        let program = load_program(temp_dir.join("main.mnst").to_str().unwrap()).unwrap();
+        let function_names = program
+            .functions
+            .iter()
+            .map(|function| function.name.clone())
+            .collect::<Vec<_>>();
+
+        assert!(function_names.contains(&"lib.math.helper".to_string()));
+        assert!(function_names.contains(&"lib.math.add".to_string()));
+        assert!(function_names.contains(&"main".to_string()));
 
         fs::remove_dir_all(temp_dir).unwrap();
     }

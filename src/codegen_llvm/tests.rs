@@ -1,4 +1,5 @@
 use super::emit_program;
+use crate::ast::{Expr, Function, Program, Stmt, Type};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use crate::semantic::analyze_program;
@@ -29,6 +30,44 @@ fn emits_function_and_arithmetic_ir() {
     assert!(ir.contains("define i32 @add(i32 %a, i32 %b) {"));
     assert!(ir.contains("store i32 %a, ptr %a.addr.0"));
     assert!(ir.contains("call i32 @add(i32 3, i32 4)"));
+}
+
+#[test]
+fn sanitizes_namespaced_function_symbols() {
+    let program = Program {
+        imports: Vec::new(),
+        enums: Vec::new(),
+        structs: Vec::new(),
+        functions: vec![
+            Function {
+                name: "lib.math.add".to_string(),
+                params: vec![("a".to_string(), Type::I32), ("b".to_string(), Type::I32)],
+                ret_type: Type::I32,
+                body: Some(vec![Stmt::Return(Some(Expr::Binary {
+                    op: crate::ast::BinOp::Add,
+                    left: Box::new(Expr::Var("a".to_string())),
+                    right: Box::new(Expr::Var("b".to_string())),
+                }))]),
+                is_extern: false,
+            },
+            Function {
+                name: "main".to_string(),
+                params: vec![],
+                ret_type: Type::I32,
+                body: Some(vec![Stmt::Return(Some(Expr::Call {
+                    name: "lib.math.add".to_string(),
+                    args: vec![Expr::Int(3), Expr::Int(4)],
+                }))]),
+                is_extern: false,
+            },
+        ],
+    };
+
+    analyze_program(&program).expect("semantic analysis should succeed");
+    let ir = emit_program(&program).expect("llvm emission should succeed");
+
+    assert!(ir.contains("define i32 @lib__math__add(i32 %a, i32 %b) {"));
+    assert!(ir.contains("call i32 @lib__math__add(i32 3, i32 4)"));
 }
 
 #[test]
@@ -134,6 +173,44 @@ fn emits_file_io_builtins() {
     assert!(ir.contains("declare i64 @fwrite(ptr, i64, i64, ptr)"));
     assert!(ir.contains("call ptr @__monster_builtin_read_file(ptr getelementptr"));
     assert!(ir.contains("call void @__monster_builtin_write_file(ptr getelementptr"));
+}
+
+#[test]
+fn emits_string_and_byte_utility_builtins() {
+    let ir = emit_source(
+        r#"
+        extern fn calloc(count: usize, size: usize) -> *u8;
+        extern fn free(ptr: *u8) -> void;
+
+        fn main() -> i32 {
+            let src: str = "Monster";
+            let len: usize = strlen(src);
+            let buf: *u8 = calloc(len + (1 as usize), sizeof(u8));
+            memcpy(buf, src as *u8, len + (1 as usize));
+
+            if str_eq(src, buf as str) && memcmp(buf, src as *u8, len) == 0 {
+                free(buf);
+                return len as i32;
+            }
+
+            free(buf);
+            return 0;
+        }
+        "#,
+    );
+
+    assert!(ir.contains("define internal i64 @__monster_builtin_strlen(ptr %value)"));
+    assert!(
+        ir.contains("define internal i32 @__monster_builtin_memcmp(ptr %lhs, ptr %rhs, i64 %len)")
+    );
+    assert!(
+        ir.contains("define internal void @__monster_builtin_memcpy(ptr %dst, ptr %src, i64 %len)")
+    );
+    assert!(ir.contains("define internal i1 @__monster_builtin_str_eq(ptr %lhs, ptr %rhs)"));
+    assert!(ir.contains("call i64 @__monster_builtin_strlen(ptr"));
+    assert!(ir.contains("call void @__monster_builtin_memcpy(ptr"));
+    assert!(ir.contains("call i32 @__monster_builtin_memcmp(ptr"));
+    assert!(ir.contains("call i1 @__monster_builtin_str_eq(ptr"));
 }
 
 #[test]
@@ -444,6 +521,34 @@ fn emits_c_like_enum_values_and_comparison() {
     assert!(ir.contains("store i32 1, ptr %color.addr."));
     assert!(ir.contains("icmp eq i32 %"));
     assert!(!ir.contains("%struct.Color = type"));
+}
+
+#[test]
+fn emits_payload_enum_construction_and_access() {
+    let ir = emit_source(
+        r#"
+        enum Token {
+            Int(i32),
+            Eof,
+        }
+
+        fn main() -> i32 {
+            let token: Token = Int(42);
+
+            if is(token, Int) {
+                return payload(token, Int);
+            } else {
+                return 0;
+            }
+        }
+        "#,
+    );
+
+    assert!(ir.contains("%enum.Token = type { i32, i32, [1 x i64] }"));
+    assert!(ir.contains("store %enum.Token"));
+    assert!(ir.contains("store i32 0, ptr %enum.tag.ptr."));
+    assert!(ir.contains("store i32 42, ptr %enum.payload.ptr."));
+    assert!(ir.contains("load i32, ptr %enum.payload.ptr."));
 }
 
 #[test]

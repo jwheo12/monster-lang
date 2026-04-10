@@ -1,8 +1,10 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::ast::Type;
 
-pub(super) fn llvm_type(ty: &Type, enum_names: &HashSet<String>) -> String {
+use super::EnumLayout;
+
+pub(super) fn llvm_type(ty: &Type, enum_layouts: &HashMap<String, EnumLayout>) -> String {
     match ty {
         Type::I32 => "i32".to_string(),
         Type::U8 => "i8".to_string(),
@@ -11,14 +13,18 @@ pub(super) fn llvm_type(ty: &Type, enum_names: &HashSet<String>) -> String {
         Type::Str => "ptr".to_string(),
         Type::Void => "void".to_string(),
         Type::Named(name) => {
-            if enum_names.contains(name) {
-                "i32".to_string()
+            if let Some(layout) = enum_layouts.get(name) {
+                if layout.has_payload {
+                    format!("%enum.{name}")
+                } else {
+                    "i32".to_string()
+                }
             } else {
                 format!("%struct.{name}")
             }
         }
         Type::Array(element_ty, len) => {
-            format!("[{} x {}]", len, llvm_type(element_ty, enum_names))
+            format!("[{} x {}]", len, llvm_type(element_ty, enum_layouts))
         }
         Type::Slice(_) => "{ ptr, i64 }".to_string(),
         Type::Ptr(_) => "ptr".to_string(),

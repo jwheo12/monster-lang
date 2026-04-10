@@ -536,6 +536,16 @@ fn rewrite_expr(
     visible_functions: &HashMap<String, String>,
 ) -> ast::Expr {
     match expr {
+        ast::Expr::Match { value, arms } => ast::Expr::Match {
+            value: Box::new(rewrite_expr(*value, module_aliases, visible_functions)),
+            arms: arms
+                .into_iter()
+                .map(|arm| ast::MatchArm {
+                    pattern: arm.pattern,
+                    expr: rewrite_expr(arm.expr, module_aliases, visible_functions),
+                })
+                .collect(),
+        },
         ast::Expr::ArrayLiteral(elements) => ast::Expr::ArrayLiteral(
             elements
                 .into_iter()

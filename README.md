@@ -39,13 +39,13 @@ mst --version
 Pin a specific release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc2 bash
+curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc3 bash
 ```
 
 Pin a specific release on Windows PowerShell:
 
 ```powershell
-$env:MST_VERSION = "v0.1.0-rc2"
+$env:MST_VERSION = "v0.1.0-rc3"
 irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex
 ```
 
@@ -332,6 +332,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
 - [`examples/imports/main.mnst`](./examples/imports/main.mnst): aliased `import`, qualified module calls, and `break` / `continue`
 - [`examples/imports/math.mnst`](./examples/imports/math.mnst): imported helper module used by the loop-control example
+- [`examples/match.mnst`](./examples/match.mnst): payload enum matching with `Variant => expr` and `Variant(binding) => expr`
 - [`examples/string_bytes.mnst`](./examples/string_bytes.mnst): `strlen`, `memcmp`, `memcpy`, and `str_eq` against a copied C string buffer
 
 ## Roadmap

@@ -5,6 +5,7 @@ pub enum TokenKind {
     Fn,
     Struct,
     Enum,
+    Match,
     SizeOf,
     Let,
     Mut,
@@ -29,6 +30,7 @@ pub enum TokenKind {
     LBrace,       // {
     RBrace,       // }
     Equal,        // =
+    FatArrow,     // =>
     Bang,         // !
     Amp,          // &
     EqualEqual,   // ==

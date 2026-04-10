@@ -439,6 +439,12 @@ fn collect_strings_from_expr(
                 collect_strings_from_expr(value, string_literals, next_index);
             }
         }
+        Expr::Match { value, arms } => {
+            collect_strings_from_expr(value, string_literals, next_index);
+            for arm in arms {
+                collect_strings_from_expr(&arm.expr, string_literals, next_index);
+            }
+        }
         Expr::ArrayLiteral(elements) => {
             for element in elements {
                 collect_strings_from_expr(element, string_literals, next_index);

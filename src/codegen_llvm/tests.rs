@@ -214,6 +214,37 @@ fn emits_string_and_byte_utility_builtins() {
 }
 
 #[test]
+fn emits_match_for_payload_enum() {
+    let ir = emit_source(
+        r#"
+        enum Token {
+            Int(i32),
+            Name(str),
+            Eof,
+        }
+
+        fn unwrap(token: Token) -> i32 {
+            return match token {
+                Int(value) => value,
+                Name(_) => 0,
+                Eof => 0,
+            };
+        }
+
+        fn main() -> i32 {
+            return unwrap(Int(42));
+        }
+        "#,
+    );
+
+    assert!(ir.contains("match.arm."));
+    assert!(ir.contains("match.end."));
+    assert!(ir.contains("phi i32"));
+    assert!(ir.contains("icmp eq i32"));
+    assert!(ir.contains("store i32 42, ptr %enum.payload.ptr."));
+}
+
+#[test]
 fn emits_void_function_and_bare_return() {
     let ir = emit_source(
         r#"

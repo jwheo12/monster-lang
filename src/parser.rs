@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::ast::{
-    BinOp, EnumDef, EnumVariant, Expr, Function, ImportDecl, Program, Stmt, StructDef, Type,
-    UnaryOp,
+    BinOp, EnumDef, EnumVariant, Expr, Function, ImportDecl, MatchArm, MatchPattern, Program, Stmt,
+    StructDef, Type, UnaryOp,
 };
 use crate::token::{Token, TokenKind};
 
@@ -839,6 +839,7 @@ impl Parser {
 
         match token.kind {
             TokenKind::SizeOf => self.parse_sizeof_expr(),
+            TokenKind::Match => self.parse_match_expr(),
             TokenKind::Int => {
                 self.advance();
                 let value = token.lexeme.parse::<i32>().map_err(|e| {
@@ -885,6 +886,44 @@ impl Parser {
         let ty = self.parse_type()?;
         self.expect(TokenKind::RParen)?;
         Ok(Expr::SizeOf(ty))
+    }
+
+    fn parse_match_expr(&mut self) -> Result<Expr, String> {
+        self.expect(TokenKind::Match)?;
+        let value = self.parse_expr()?;
+        self.expect(TokenKind::LBrace)?;
+
+        let mut arms = Vec::new();
+        while !self.at(TokenKind::RBrace) {
+            let variant = self.expect_ident()?.lexeme;
+            let binding = if self.at(TokenKind::LParen) {
+                self.expect(TokenKind::LParen)?;
+                let binding = self.expect_ident()?.lexeme;
+                self.expect(TokenKind::RParen)?;
+                Some(binding)
+            } else {
+                None
+            };
+
+            self.expect(TokenKind::FatArrow)?;
+            let expr = self.parse_expr()?;
+            arms.push(MatchArm {
+                pattern: MatchPattern { variant, binding },
+                expr,
+            });
+
+            if self.at(TokenKind::Comma) {
+                self.expect(TokenKind::Comma)?;
+            } else {
+                break;
+            }
+        }
+
+        self.expect(TokenKind::RBrace)?;
+        Ok(Expr::Match {
+            value: Box::new(value),
+            arms,
+        })
     }
 
     fn parse_array_literal(&mut self) -> Result<Expr, String> {
@@ -1019,6 +1058,44 @@ mod tests {
         assert_eq!(program.enums[0].variants[1].payload, Some(Type::Str));
         assert_eq!(program.enums[0].variants[2].name, "Eof");
         assert_eq!(program.enums[0].variants[2].payload, None);
+    }
+
+    #[test]
+    fn parses_match_expression_with_payload_binding() {
+        let program = parse_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int(42);
+                return match token {
+                    Int(value) => value,
+                    Eof => 0,
+                };
+            }
+            "#,
+        );
+
+        let body = program.functions[0]
+            .body
+            .as_ref()
+            .expect("expected function body");
+
+        let Stmt::Return(Some(Expr::Match { value, arms })) = &body[1] else {
+            panic!("expected match return expression");
+        };
+
+        assert!(matches!(value.as_ref(), Expr::Var(name) if name == "token"));
+        assert_eq!(arms.len(), 2);
+        assert_eq!(arms[0].pattern.variant, "Int");
+        assert_eq!(arms[0].pattern.binding.as_deref(), Some("value"));
+        assert!(matches!(arms[0].expr, Expr::Var(ref name) if name == "value"));
+        assert_eq!(arms[1].pattern.variant, "Eof");
+        assert!(arms[1].pattern.binding.is_none());
+        assert!(matches!(arms[1].expr, Expr::Int(0)));
     }
 
     #[test]

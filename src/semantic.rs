@@ -27,6 +27,7 @@ struct StructInfo {
 #[derive(Clone)]
 struct EnumInfo {
     has_payload: bool,
+    variants: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -120,8 +121,17 @@ impl Analyzer {
                 }
             }
 
-            self.enums
-                .insert(enum_def.name.clone(), EnumInfo { has_payload });
+            self.enums.insert(
+                enum_def.name.clone(),
+                EnumInfo {
+                    has_payload,
+                    variants: enum_def
+                        .variants
+                        .iter()
+                        .map(|variant| variant.name.clone())
+                        .collect(),
+                },
+            );
         }
 
         for struct_def in &program.structs {
@@ -403,6 +413,7 @@ impl Analyzer {
                 self.ensure_value_type(ty, "sizeof operand")?;
                 Ok(Type::USize)
             }
+            Expr::Match { value, arms } => self.analyze_match_expr(value, arms),
             Expr::Cast { expr, ty } => {
                 self.ensure_value_type(ty, "cast target")?;
                 let expr_ty = self.analyze_expr(expr)?;
@@ -973,6 +984,102 @@ impl Analyzer {
                 type_name(&enum_ty)
             )
         })
+    }
+
+    fn analyze_match_expr(
+        &mut self,
+        value: &Expr,
+        arms: &[crate::ast::MatchArm],
+    ) -> Result<Type, String> {
+        if arms.is_empty() {
+            return Err("match expression must have at least one arm".to_string());
+        }
+
+        let value_ty = self.analyze_expr(value)?;
+        let Type::Named(enum_name) = value_ty.clone() else {
+            return Err("match expression requires an enum value".to_string());
+        };
+
+        let enum_info = self
+            .enums
+            .get(&enum_name)
+            .cloned()
+            .ok_or_else(|| format!("unknown enum '{}'", enum_name))?;
+
+        let mut seen_variants = HashMap::new();
+        let mut result_ty = None;
+
+        for arm in arms {
+            let variant = self
+                .enum_variants
+                .get(&arm.pattern.variant)
+                .cloned()
+                .ok_or_else(|| {
+                    format!(
+                        "unknown enum variant '{}' in match arm",
+                        arm.pattern.variant
+                    )
+                })?;
+
+            if variant.enum_name != enum_name {
+                return Err(format!(
+                    "match arm variant '{}' does not belong to enum '{}'",
+                    arm.pattern.variant, enum_name
+                ));
+            }
+
+            if seen_variants
+                .insert(arm.pattern.variant.clone(), ())
+                .is_some()
+            {
+                return Err(format!(
+                    "duplicate match arm for variant '{}'",
+                    arm.pattern.variant
+                ));
+            }
+
+            let arm_ty = match (&variant.payload_ty, &arm.pattern.binding) {
+                (Some(payload_ty), Some(binding)) => {
+                    self.enter_scope();
+                    if binding != "_" {
+                        self.declare_var(binding, payload_ty.clone(), false)?;
+                    }
+                    let arm_ty = self.analyze_expr(&arm.expr)?;
+                    self.exit_scope();
+                    arm_ty
+                }
+                (Some(_), None) => {
+                    return Err(format!(
+                        "match arm for payload variant '{}' must bind its payload",
+                        arm.pattern.variant
+                    ));
+                }
+                (None, Some(_)) => {
+                    return Err(format!(
+                        "match arm for variant '{}' cannot bind a payload",
+                        arm.pattern.variant
+                    ));
+                }
+                (None, None) => self.analyze_expr(&arm.expr)?,
+            };
+
+            if let Some(expected_ty) = &result_ty {
+                self.expect_type(&arm_ty, expected_ty, "match arm")?;
+            } else {
+                result_ty = Some(arm_ty);
+            }
+        }
+
+        for variant_name in &enum_info.variants {
+            if !seen_variants.contains_key(variant_name) {
+                return Err(format!(
+                    "match expression is missing arm for variant '{}'",
+                    variant_name
+                ));
+            }
+        }
+
+        Ok(result_ty.expect("match expression has at least one arm"))
     }
 
     fn extract_variant_designator(
@@ -1698,6 +1805,79 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_match_on_payload_enum() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Name(str),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int(42);
+                return match token {
+                    Int(value) => value,
+                    Name(_) => 0,
+                    Eof => 0,
+                };
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_non_exhaustive_match() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int(42);
+                return match token {
+                    Int(value) => value,
+                };
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("missing arm for variant 'Eof'")
+        ));
+    }
+
+    #[test]
+    fn rejects_match_payload_binding_mismatch() {
+        let result = analyze_source(
+            r#"
+            enum Token {
+                Int(i32),
+                Eof,
+            }
+
+            fn main() -> i32 {
+                let token: Token = Int(42);
+                return match token {
+                    Int => 1,
+                    Eof => 0,
+                };
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("must bind its payload")
+        ));
     }
 
     #[test]

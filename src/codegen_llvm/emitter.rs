@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{BinOp, Expr, Function, Stmt, Type, UnaryOp};
+use crate::ast::{BinOp, Expr, Function, MatchArm, Stmt, Type, UnaryOp};
 
 use super::{
     EnumLayout, EnumVariantInfo, FunctionSig, StringLiteralData, StructLayout,
@@ -369,6 +369,7 @@ impl<'a> FunctionEmitter<'a> {
                     Err(format!("internal error: unknown variable '{name}'"))
                 }
             }
+            Expr::Match { value, arms } => self.emit_match_expr(value, arms),
             Expr::ArrayLiteral(elements) => self.emit_array_literal(elements),
             Expr::StructLiteral { name, fields } => self.emit_struct_literal(name, fields),
             Expr::FieldAccess { base, field } => self.emit_field_access(base, field),
@@ -817,12 +818,139 @@ impl<'a> FunctionEmitter<'a> {
         self.emit_terminator("unreachable".to_string());
 
         self.start_block(&ok_label);
+        let payload = self.emit_payload_from_ptr(&enum_ptr, &enum_ty, &payload_ty)?;
+        self.emit_terminator(format!("br label %{}", end_label));
+
+        self.start_block(&end_label);
+        Ok(Value {
+            repr: payload.repr,
+            ty: payload.ty,
+        })
+    }
+
+    fn emit_match_expr(&mut self, value_expr: &Expr, arms: &[MatchArm]) -> Result<Value, String> {
+        if arms.is_empty() {
+            return Err("internal error: match expression has no arms".to_string());
+        }
+
+        let value = self.emit_expr(value_expr)?;
+        let tag = self.emit_enum_tag(&value)?;
+        let value_ptr = self.create_stack_slot("match.tmp", &value.ty);
+        self.emit_store(&value, &value_ptr);
+
+        let end_label = self.fresh_label("match.end");
+        let unreachable_label = self.fresh_label("match.unreachable");
+        let mut incoming_values = Vec::new();
+        let mut result_ty = None;
+        let mut next_label: Option<String> = None;
+
+        for (index, arm) in arms.iter().enumerate() {
+            if let Some(label) = next_label.take() {
+                self.start_block(&label);
+            }
+
+            let variant = self
+                .enum_variants
+                .get(&arm.pattern.variant)
+                .cloned()
+                .ok_or_else(|| {
+                    format!(
+                        "internal error: unknown enum variant '{}' in match arm",
+                        arm.pattern.variant
+                    )
+                })?;
+
+            let arm_label = self.fresh_label("match.arm");
+            let miss_label = if index + 1 == arms.len() {
+                unreachable_label.clone()
+            } else {
+                self.fresh_label("match.next")
+            };
+            let is_expected = self.fresh_temp("match.is");
+            self.emit_assign(
+                &is_expected,
+                format!("icmp eq i32 {}, {}", tag, variant.discriminant),
+            );
+            self.emit_terminator(format!(
+                "br i1 {}, label %{}, label %{}",
+                is_expected, arm_label, miss_label
+            ));
+
+            self.start_block(&arm_label);
+            self.enter_scope();
+
+            if let (Some(payload_ty), Some(binding)) =
+                (variant.payload_ty.clone(), arm.pattern.binding.as_ref())
+            {
+                if binding != "_" {
+                    let payload = self.emit_payload_from_ptr(&value_ptr, &value.ty, &payload_ty)?;
+                    let ptr = self.create_stack_slot(binding, &payload_ty);
+                    self.declare_local(binding, payload_ty.clone(), ptr.clone())?;
+                    self.emit_store(&payload, &ptr);
+                }
+            }
+
+            let arm_value = self.emit_expr(&arm.expr)?;
+            self.exit_scope();
+
+            if let Some(expected_ty) = &result_ty {
+                if arm_value.ty != *expected_ty {
+                    return Err("internal error: match arm type mismatch".to_string());
+                }
+            } else {
+                result_ty = Some(arm_value.ty.clone());
+            }
+
+            let incoming_block = self.current_block.clone();
+            if arm_value.ty != Type::Void {
+                incoming_values.push((arm_value.repr.clone(), incoming_block));
+            }
+            self.emit_terminator(format!("br label %{}", end_label));
+            next_label = Some(miss_label);
+        }
+
+        if let Some(label) = next_label {
+            self.start_block(&label);
+            self.emit_terminator("unreachable".to_string());
+        }
+
+        self.start_block(&end_label);
+        let result_ty = result_ty.expect("match expression has at least one arm");
+        if result_ty == Type::Void {
+            Ok(Value {
+                repr: String::new(),
+                ty: Type::Void,
+            })
+        } else {
+            let result = self.fresh_temp("match");
+            let incoming = incoming_values
+                .into_iter()
+                .map(|(value, label)| format!("[ {}, %{} ]", value, label))
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.emit_assign(
+                &result,
+                format!("phi {} {}", self.llvm_type(&result_ty), incoming),
+            );
+            Ok(Value {
+                repr: result,
+                ty: result_ty,
+            })
+        }
+    }
+
+    fn emit_payload_from_ptr(
+        &mut self,
+        enum_ptr: &str,
+        enum_ty: &Type,
+        payload_ty: &Type,
+    ) -> Result<Value, String> {
         let payload_field_ptr = self.fresh_temp("enum.payload.ptr");
         self.emit_assign(
             &payload_field_ptr,
             format!(
                 "getelementptr inbounds {}, ptr {}, i32 0, i32 2",
-                self.llvm_type(&enum_ty),
+                self.llvm_type(enum_ty),
                 enum_ptr
             ),
         );
@@ -831,16 +959,13 @@ impl<'a> FunctionEmitter<'a> {
             &payload,
             format!(
                 "load {}, ptr {}",
-                self.llvm_type(&payload_ty),
+                self.llvm_type(payload_ty),
                 payload_field_ptr
             ),
         );
-        self.emit_terminator(format!("br label %{}", end_label));
-
-        self.start_block(&end_label);
         Ok(Value {
             repr: payload,
-            ty: payload_ty,
+            ty: payload_ty.clone(),
         })
     }
 

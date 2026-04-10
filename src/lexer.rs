@@ -91,6 +91,7 @@ impl Lexer {
             "fn" => TokenKind::Fn,
             "struct" => TokenKind::Struct,
             "enum" => TokenKind::Enum,
+            "match" => TokenKind::Match,
             "sizeof" => TokenKind::SizeOf,
             "let" => TokenKind::Let,
             "mut" => TokenKind::Mut,
@@ -221,6 +222,10 @@ impl Lexer {
                         self.advance();
                         self.advance();
                         Token::new(TokenKind::EqualEqual, "==".into(), start_line, start_col)
+                    } else if self.peek() == Some('>') {
+                        self.advance();
+                        self.advance();
+                        Token::new(TokenKind::FatArrow, "=>".into(), start_line, start_col)
                     } else {
                         self.advance();
                         Token::new(TokenKind::Equal, "=".into(), start_line, start_col)

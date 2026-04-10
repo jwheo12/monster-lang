@@ -1,0 +1,19 @@
+enum Token {
+    Int(i32),
+    Name(str),
+    Eof,
+}
+
+fn token_value(token: Token) -> i32 {
+    return match token {
+        Int(value) => value,
+        Name(_) => 0,
+        Eof => -1,
+    };
+}
+
+fn main() -> i32 {
+    let token: Token = Int(42);
+    print_ln_i32(token_value(token));
+    return token_value(token);
+}

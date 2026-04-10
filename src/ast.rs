@@ -43,6 +43,10 @@ pub enum Expr {
     Str(String),
     Var(String),
     SizeOf(Type),
+    Match {
+        value: Box<Expr>,
+        arms: Vec<MatchArm>,
+    },
     ArrayLiteral(Vec<Expr>),
     StructLiteral {
         name: String,
@@ -73,6 +77,18 @@ pub enum Expr {
         expr: Box<Expr>,
         ty: Type,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchPattern {
+    pub variant: String,
+    pub binding: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatchArm {
+    pub pattern: MatchPattern,
+    pub expr: Expr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

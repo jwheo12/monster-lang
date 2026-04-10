@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CLI · Monster Docs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">M</span>
+          <span>Monster Docs</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="./index.html">Home</a>
+          <a href="./install.html">Install</a>
+          <a href="./language.html">Language</a>
+          <a aria-current="page" href="./cli.html">CLI</a>
+          <a href="./examples.html">Examples</a>
+        </nav>
+      </header>
+
+      <main class="layout">
+        <div>
+          <section class="page-header">
+            <h1>CLI Reference</h1>
+            <p>The <code>mst</code> command is the entrypoint for checking, building, running, and cleaning Monster projects.</p>
+          </section>
+
+          <section class="section">
+            <h2>Basic Commands</h2>
+            <pre><code>mst check exam.mnst
+mst emit-llvm exam.mnst
+mst build exam.mnst
+mst run exam.mnst
+mst clean
+mst --help
+mst --version</code></pre>
+          </section>
+
+          <section class="section">
+            <h2>Debug Builds</h2>
+            <pre><code>mst build --debug exam.mnst
+mst run --debug exam.mnst</code></pre>
+            <p>
+              Debug builds keep the raw LLVM IR in <code>target/mst/</code>, skip LLVM <code>-O2</code>,
+              and link with <code>clang -g -O0</code>.
+            </p>
+          </section>
+
+          <section class="section">
+            <h2>Passing Program Arguments</h2>
+            <pre><code>mst run examples/argv.mnst -- hello from monster</code></pre>
+            <p>
+              Everything after <code>--</code> is forwarded to the compiled Monster program. Monster
+              programs can receive these through <code>main(argc: i32, argv: **u8)</code>.
+            </p>
+          </section>
+
+          <section class="section">
+            <h2>Build Output</h2>
+            <p>
+              Generated binaries and intermediate LLVM files live in <code>target/mst/</code>.
+              This keeps project roots clean while preserving artifacts useful for debugging.
+            </p>
+          </section>
+        </div>
+
+        <aside class="sidebar">
+          <div class="note">
+            <p><strong>Pipeline</strong></p>
+            <p><code>emit-llvm</code> shows the compiler's raw LLVM IR output. <code>build</code> and <code>run</code> then optimize with <code>opt</code> and link through <code>clang</code>.</p>
+          </div>
+          <div class="note">
+            <p><strong>Need install steps?</strong></p>
+            <p><a href="./install.html">Open the install guide</a></p>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

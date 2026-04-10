@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Language · Monster Docs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">M</span>
+          <span>Monster Docs</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="./index.html">Home</a>
+          <a href="./install.html">Install</a>
+          <a aria-current="page" href="./language.html">Language</a>
+          <a href="./cli.html">CLI</a>
+          <a href="./examples.html">Examples</a>
+        </nav>
+      </header>
+
+      <main class="layout">
+        <div>
+          <section class="page-header">
+            <h1>Language Overview</h1>
+            <p>Monster currently blends a Rust-leaning surface syntax with low-level C-style control, pointers, explicit memory work, and an LLVM-first backend.</p>
+          </section>
+
+          <section class="section" id="functions">
+            <h2>Functions and Control Flow</h2>
+            <pre><code>fn classify(x: i32) -> i32 {
+    if x &lt; 0 {
+        return -1;
+    } else if x == 0 {
+        return 0;
+    } else {
+        return 1;
+    }
+}</code></pre>
+            <ul>
+              <li><code>fn</code> and <code>extern fn</code></li>
+              <li><code>return expr;</code> and <code>return;</code></li>
+              <li><code>if</code>, <code>else</code>, <code>while</code>, <code>break</code>, <code>continue</code></li>
+            </ul>
+          </section>
+
+          <section class="section" id="types">
+            <h2>Types</h2>
+            <p>Built-in scalar types:</p>
+            <ul>
+              <li><code>i32</code></li>
+              <li><code>u8</code></li>
+              <li><code>usize</code></li>
+              <li><code>bool</code></li>
+              <li><code>str</code></li>
+              <li><code>void</code></li>
+            </ul>
+            <p>Composite types and low-level forms:</p>
+            <ul>
+              <li>fixed arrays: <code>[T; N]</code></li>
+              <li>slices: <code>[T]</code> and <code>slice(array)</code></li>
+              <li>raw pointers: <code>*T</code>, <code>&amp;expr</code>, <code>*ptr</code>, <code>ptr[i]</code></li>
+              <li>structs</li>
+              <li>enums and payload enums</li>
+            </ul>
+          </section>
+
+          <section class="section" id="structs">
+            <h2>Structs</h2>
+            <pre><code>struct Pair {
+    left: i32,
+    right: i32,
+}
+
+fn main() -> i32 {
+    let mut pair: Pair = Pair { left: 10, right: 20 };
+    pair.left = 42;
+    return pair.left + pair.right;
+}</code></pre>
+          </section>
+
+          <section class="section" id="enums">
+            <h2>Enums and Match</h2>
+            <pre><code>enum Token {
+    Int(i32),
+    Name(str),
+    Eof,
+}
+
+fn value(token: Token) -> i32 {
+    return match token {
+        Int(n) =&gt; n,
+        Name(_) =&gt; 0,
+        Eof =&gt; -1,
+    };
+}</code></pre>
+            <p>
+              Current <code>match</code> support is enum-only and expression-based. Arms must be exhaustive,
+              and payload variants bind through <code>Variant(name)</code> patterns.
+            </p>
+          </section>
+
+          <section class="section" id="imports">
+            <h2>Imports and Modules</h2>
+            <pre><code>import "math.mnst" as math;
+
+fn main() -> i32 {
+    return math.add(3, 4);
+}</code></pre>
+            <p>
+              Imports are file-based today. Alias-qualified calls like <code>math.add(...)</code> help keep
+              larger programs organized.
+            </p>
+          </section>
+
+          <section class="section" id="builtins">
+            <h2>Builtins</h2>
+            <ul>
+              <li>printing: <code>print_*</code>, <code>print_ln_*</code></li>
+              <li>input: <code>read_i32</code></li>
+              <li>array and slice helpers: <code>len</code>, <code>slice</code></li>
+              <li>file I/O: <code>read_file</code>, <code>write_file</code></li>
+              <li>string and byte helpers: <code>strlen</code>, <code>memcmp</code>, <code>memcpy</code>, <code>str_eq</code></li>
+              <li>type utility: <code>sizeof(T)</code></li>
+            </ul>
+          </section>
+        </div>
+
+        <aside class="sidebar">
+          <div class="note">
+            <p><strong>Current flavor</strong></p>
+            <p>Monster is still intentionally small. The syntax leans Rust-like, while the execution model stays close to C and LLVM.</p>
+          </div>
+          <div class="note">
+            <p><strong>Next stop</strong></p>
+            <p>The examples page is the fastest way to see how modules, payload enums, file I/O, and byte utilities feel in real code.</p>
+            <p><a href="./examples.html">Open examples</a></p>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

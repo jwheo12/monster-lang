@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Install · Monster Docs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">M</span>
+          <span>Monster Docs</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="./index.html">Home</a>
+          <a aria-current="page" href="./install.html">Install</a>
+          <a href="./language.html">Language</a>
+          <a href="./cli.html">CLI</a>
+          <a href="./examples.html">Examples</a>
+        </nav>
+      </header>
+
+      <main class="layout">
+        <div>
+          <section class="page-header">
+            <h1>Install Monster</h1>
+            <p>Use the release installer for the fastest setup, or install from source when you want to work on the compiler itself.</p>
+          </section>
+
+          <section class="section" id="release">
+            <h2>Release Installer</h2>
+            <p>Linux and macOS:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash
+mst --help</code></pre>
+            <p>Windows PowerShell:</p>
+            <pre><code>irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex
+mst --version</code></pre>
+            <p>System-wide install on Unix-like systems:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash
+mst --version</code></pre>
+          </section>
+
+          <section class="section" id="pinning">
+            <h2>Pin a Specific Release</h2>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc3 bash</code></pre>
+            <pre><code>$env:MST_VERSION = "v0.1.0-rc3"
+irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex</code></pre>
+          </section>
+
+          <section class="section" id="source">
+            <h2>Build From Source</h2>
+            <pre><code>git clone https://github.com/BitIntx/monster-lang.git
+cd monster-lang
+./install/install.sh
+mst --help</code></pre>
+            <p>
+              The compiler itself is written in Rust. Building from source is the right choice if
+              you want to hack on Monster, test changes locally, or package custom builds.
+            </p>
+          </section>
+
+          <section class="section" id="requirements">
+            <h2>Toolchain Requirements</h2>
+            <p>
+              For <code>mst build</code> and <code>mst run</code>, you still need
+              <code>clang-18</code> or <code>clang</code>, and <code>opt-18</code> or <code>opt</code>
+              on your <code>PATH</code>.
+            </p>
+            <p>
+              The release installer currently supports Linux x86_64, Linux ARM64, macOS x86_64,
+              macOS arm64, and Windows x86_64.
+            </p>
+          </section>
+
+          <section class="section" id="update">
+            <h2>Update</h2>
+            <p>The release installer also doubles as the update path:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash</code></pre>
+          </section>
+        </div>
+
+        <aside class="sidebar">
+          <div class="note">
+            <p><strong>Default install path</strong></p>
+            <p>Unix-like systems install into <code>~/.local/bin</code> by default. Windows installs into <code>%LOCALAPPDATA%\Programs\mst\bin</code>.</p>
+          </div>
+          <div class="note">
+            <p><strong>Useful links</strong></p>
+            <ul class="link-list">
+              <li><a href="https://github.com/BitIntx/monster-lang/releases">GitHub Releases</a></li>
+              <li><a href="./cli.html">CLI reference</a></li>
+            </ul>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

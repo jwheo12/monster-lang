@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monster Docs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">M</span>
+          <span>Monster Docs</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a aria-current="page" href="./index.html">Home</a>
+          <a href="./install.html">Install</a>
+          <a href="./language.html">Language</a>
+          <a href="./cli.html">CLI</a>
+          <a href="./examples.html">Examples</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <span class="eyebrow">LLVM-first AOT systems language</span>
+            <h1>Monster documentation, kept simple and close to the compiler.</h1>
+            <p>
+              Monster is an experimental low-level language with a Rust-flavored surface,
+              explicit control, LLVM IR output, and a small toolchain built around the
+              <code>mst</code> compiler.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="./install.html">Install Monster</a>
+              <a class="button button-secondary" href="./language.html">Read the language guide</a>
+            </div>
+          </div>
+
+          <aside class="hero-panel">
+            <h2>Pipeline</h2>
+            <pre><code>.mnst source
+  -> lexer
+  -> parser
+  -> AST
+  -> semantic analysis
+  -> LLVM IR
+  -> opt-18 (-O2)
+  -> clang-18
+  -> native binary</code></pre>
+            <ul class="panel-list">
+              <li>Compiler executable: <code>mst</code></li>
+              <li>Source extension: <code>.mnst</code></li>
+              <li>Static docs ready for GitHub Pages and editor help links</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="doc-grid" aria-label="Guides">
+          <li class="card">
+            <h3><a href="./install.html">Install</a></h3>
+            <p>Release installer, source install, supported platforms, and update workflow.</p>
+          </li>
+          <li class="card">
+            <h3><a href="./language.html">Language</a></h3>
+            <p>Core syntax, types, control flow, enums, pointers, imports, and builtins.</p>
+          </li>
+          <li class="card">
+            <h3><a href="./cli.html">CLI</a></h3>
+            <p><code>check</code>, <code>emit-llvm</code>, <code>build</code>, <code>run</code>, and debug builds.</p>
+          </li>
+          <li class="card">
+            <h3><a href="./examples.html">Examples</a></h3>
+            <p>Working samples for argv, file I/O, module aliases, enums, match, and byte utilities.</p>
+          </li>
+        </section>
+
+        <section class="section">
+          <h2>Current Feature Snapshot</h2>
+          <div class="feature-grid">
+            <article class="feature">
+              <h3>Language Core</h3>
+              <p>
+                <code>fn</code>, <code>extern fn</code>, <code>let</code>, <code>let mut</code>,
+                <code>if</code>, <code>while</code>, <code>break</code>, <code>continue</code>,
+                and <code>return</code>/<code>return;</code>.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>Data Model</h3>
+              <p>
+                <code>i32</code>, <code>u8</code>, <code>usize</code>, <code>bool</code>,
+                <code>str</code>, <code>void</code>, fixed arrays, slices, structs, pointers,
+                enums, and payload enums.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>Low-Level Utilities</h3>
+              <p>
+                <code>sizeof(T)</code>, <code>argc/argv</code>, file I/O builtins, string and byte
+                helpers, and explicit casts with <code>as</code>.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Quick Example</h2>
+          <pre><code>fn main() -> i32 {
+    print_ln_str("Hello, World!");
+    return 0;
+}</code></pre>
+        </section>
+
+        <footer class="footer">
+          Monster compiler repository:
+          <a href="https://github.com/BitIntx/monster-lang">github.com/BitIntx/monster-lang</a>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

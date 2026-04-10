@@ -11,6 +11,16 @@ The current compiler is written in Rust and targets LLVM IR.
 
 The compiler executable is named `mst`, and Monster source files use the `.mnst` extension.
 
+## Docs
+
+A lightweight static documentation site now lives under [`docs/`](./docs/index.html).
+
+It is designed to work both as:
+
+- a simple in-repo reference
+- a future GitHub Pages site
+- a stable target for editor help links
+
 ## Install
 
 Install from GitHub Releases with one command:

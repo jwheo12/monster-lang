@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Examples · Monster Docs</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="./index.html">
+          <span class="brand-mark">M</span>
+          <span>Monster Docs</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="./index.html">Home</a>
+          <a href="./install.html">Install</a>
+          <a href="./language.html">Language</a>
+          <a href="./cli.html">CLI</a>
+          <a aria-current="page" href="./examples.html">Examples</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="page-header">
+          <h1>Examples</h1>
+          <p>These examples ship with the repository and mirror the current compiler feature set.</p>
+        </section>
+
+        <section class="card-grid">
+          <article class="card">
+            <h3><code>exam.mnst</code></h3>
+            <p>The smallest "hello world" style program for quick sanity checks.</p>
+            <pre><code>mst run exam.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/argv.mnst</code></h3>
+            <p>Shows <code>main(argc, argv)</code> and forwarded CLI arguments.</p>
+            <pre><code>mst run examples/argv.mnst -- hello</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/file_io.mnst</code></h3>
+            <p>Reads a file into memory, prints its size, and writes a copy back out.</p>
+            <pre><code>mst run examples/file_io.mnst -- exam.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/imports/main.mnst</code></h3>
+            <p>Demonstrates file imports, module aliases, and loop control.</p>
+            <pre><code>mst run examples/imports/main.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/enum.mnst</code></h3>
+            <p>Introduces C-like enums and enum comparisons.</p>
+            <pre><code>mst run examples/enum.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/payload_enum.mnst</code></h3>
+            <p>Shows payload-carrying enums before <code>match</code> enters the picture.</p>
+            <pre><code>mst run examples/payload_enum.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/match.mnst</code></h3>
+            <p>Exercises enum-only <code>match</code> expressions with payload binding.</p>
+            <pre><code>mst run examples/match.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/string_bytes.mnst</code></h3>
+            <p>Uses <code>strlen</code>, <code>memcpy</code>, <code>memcmp</code>, and <code>str_eq</code>.</p>
+            <pre><code>mst run examples/string_bytes.mnst</code></pre>
+          </article>
+
+          <article class="card">
+            <h3><code>examples/growable_vec_i32.mnst</code></h3>
+            <p>Shows a manual growable vector built with <code>malloc</code>, <code>realloc</code>, and <code>free</code>.</p>
+            <pre><code>mst run examples/growable_vec_i32.mnst</code></pre>
+          </article>
+        </section>
+
+        <section class="section">
+          <h2>Raw LLVM Example</h2>
+          <p>
+            The repository also includes a raw IR snapshot at
+            <code>examples/growable_vec_i32.ll</code>, emitted by the current compiler.
+          </p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

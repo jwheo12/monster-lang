@@ -21,6 +21,10 @@ It is designed to work both as:
 - a future GitHub Pages site
 - a stable target for editor help links
 
+Live site:
+
+- <https://bitintx.github.io/monster-lang/>
+
 ## Install
 
 Install from GitHub Releases with one command:

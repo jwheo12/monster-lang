@@ -88,6 +88,7 @@ mst build --debug exam.mnst
 mst run exam.mnst
 mst run --debug exam.mnst
 mst run examples/argv.mnst -- hello
+mst run examples/file_io.mnst -- exam.mnst
 mst clean
 mst --help
 mst --version
@@ -160,6 +161,7 @@ Supported language features:
 - comparison operators: `== != < <= > >=`
 - string literals
 - builtins: `print_i32`, `print_bool`, `print_str`, `print_ln_i32`, `print_ln_bool`, `print_ln_str`, `read_i32`, `len`
+- file I/O builtins: `read_file(path, &len)` and `write_file(path, data, len)`
 - explicit casts with `as`
 
 `print_*` writes without a trailing newline, while `print_ln_*` appends one.
@@ -290,6 +292,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 
 - [`exam.mnst`](./exam.mnst): a Hello, World! starting point with comments summarizing the rest of the current language surface
 - [`examples/argv.mnst`](./examples/argv.mnst): `main(argc, argv)` plus forwarded CLI arguments
+- [`examples/file_io.mnst`](./examples/file_io.mnst): file reading and writing with `read_file` / `write_file`
 - [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a manual growable vector built with raw pointers and libc allocation
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
 - [`examples/imports/main.mnst`](./examples/imports/main.mnst): relative `import` plus `break` / `continue`

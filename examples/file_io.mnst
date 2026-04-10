@@ -1,0 +1,18 @@
+extern fn free(ptr: *u8) -> void;
+
+fn main(argc: i32, argv: **u8) -> i32 {
+    let mut path: str = "exam.mnst";
+
+    if argc > 1 {
+        path = argv[1] as str;
+    }
+
+    let mut len: usize = 0 as usize;
+    let data: *u8 = read_file(path, &len);
+
+    print_ln_i32(len as i32);
+    write_file("target/mst/file_io_copy.txt", data, len);
+    free(data);
+
+    return 0;
+}

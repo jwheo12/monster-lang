@@ -108,6 +108,35 @@ fn emits_builtin_io_calls() {
 }
 
 #[test]
+fn emits_file_io_builtins() {
+    let ir = emit_source(
+        r#"
+        extern fn free(ptr: *u8) -> void;
+
+        fn main() -> i32 {
+            let mut len: usize = 0 as usize;
+            let data: *u8 = read_file("exam.mnst", &len);
+            write_file("target/mst/exam.copy", data, len);
+            free(data);
+            return len as i32;
+        }
+        "#,
+    );
+
+    assert!(
+        ir.contains("define internal ptr @__monster_builtin_read_file(ptr %path, ptr %out_len)")
+    );
+    assert!(ir.contains(
+        "define internal void @__monster_builtin_write_file(ptr %path, ptr %data, i64 %len)"
+    ));
+    assert!(ir.contains("declare ptr @fopen(ptr, ptr)"));
+    assert!(ir.contains("declare i64 @fread(ptr, i64, i64, ptr)"));
+    assert!(ir.contains("declare i64 @fwrite(ptr, i64, i64, ptr)"));
+    assert!(ir.contains("call ptr @__monster_builtin_read_file(ptr getelementptr"));
+    assert!(ir.contains("call void @__monster_builtin_write_file(ptr getelementptr"));
+}
+
+#[test]
 fn emits_void_function_and_bare_return() {
     let ir = emit_source(
         r#"

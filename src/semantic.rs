@@ -708,6 +708,20 @@ impl Analyzer {
                 ret_type: Type::I32,
             },
         );
+        self.functions.insert(
+            "read_file".to_string(),
+            FunctionSig {
+                params: vec![Type::Str, Type::Ptr(Box::new(Type::USize))],
+                ret_type: Type::Ptr(Box::new(Type::U8)),
+            },
+        );
+        self.functions.insert(
+            "write_file".to_string(),
+            FunctionSig {
+                params: vec![Type::Str, Type::Ptr(Box::new(Type::U8)), Type::USize],
+                ret_type: Type::Void,
+            },
+        );
     }
 
     fn analyze_len_call(&mut self, args: &[Expr]) -> Result<Type, String> {
@@ -986,6 +1000,25 @@ mod tests {
                 let x: i32 = read_i32();
                 print_ln_i32(x);
                 return 0;
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_file_io_builtins() {
+        let result = analyze_source(
+            r#"
+            extern fn free(ptr: *u8) -> void;
+
+            fn main() -> i32 {
+                let mut len: usize = 0 as usize;
+                let data: *u8 = read_file("exam.mnst", &len);
+                write_file("target/mst/exam.copy", data, len);
+                free(data);
+                return len as i32;
             }
             "#,
         );

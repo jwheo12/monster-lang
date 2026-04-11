@@ -19,6 +19,12 @@ pub(super) struct FunctionSig {
 }
 
 #[derive(Clone)]
+pub(super) struct ConstInfo {
+    ty: Type,
+    value: Expr,
+}
+
+#[derive(Clone)]
 pub(super) struct StructLayout {
     fields: Vec<(String, Type)>,
 }
@@ -46,6 +52,7 @@ pub fn emit_program(program: &Program) -> Result<String, String> {
     let struct_layouts = collect_struct_layouts(program);
     let enum_layouts = collect_enum_layouts(program, &struct_layouts)?;
     let enum_variants = collect_enum_variants(program);
+    let consts = collect_consts(program);
     let function_sigs = collect_function_sigs(program);
     let string_literals = collect_string_literals(program);
 
@@ -68,6 +75,7 @@ pub fn emit_program(program: &Program) -> Result<String, String> {
             &struct_layouts,
             &enum_layouts,
             &enum_variants,
+            &consts,
             &string_literals,
         );
         out.push_str(&emitter.emit()?);
@@ -153,9 +161,29 @@ fn collect_function_sigs(program: &Program) -> HashMap<String, FunctionSig> {
     sigs
 }
 
+fn collect_consts(program: &Program) -> HashMap<String, ConstInfo> {
+    let mut consts = HashMap::new();
+
+    for const_def in &program.consts {
+        consts.insert(
+            const_def.name.clone(),
+            ConstInfo {
+                ty: const_def.ty.clone(),
+                value: const_def.value.clone(),
+            },
+        );
+    }
+
+    consts
+}
+
 fn collect_string_literals(program: &Program) -> HashMap<String, StringLiteralData> {
     let mut string_literals = HashMap::new();
     let mut next_index = 0;
+
+    for const_def in &program.consts {
+        collect_strings_from_expr(&const_def.value, &mut string_literals, &mut next_index);
+    }
 
     for function in &program.functions {
         if let Some(body) = &function.body {

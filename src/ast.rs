@@ -157,6 +157,13 @@ pub struct EnumDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstDef {
+    pub name: String,
+    pub ty: Type,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     pub name: String,
     pub params: Vec<(String, Type)>,
@@ -168,6 +175,7 @@ pub struct Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
     pub imports: Vec<ImportDecl>,
+    pub consts: Vec<ConstDef>,
     pub enums: Vec<EnumDef>,
     pub structs: Vec<StructDef>,
     pub functions: Vec<Function>,

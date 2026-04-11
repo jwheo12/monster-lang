@@ -441,6 +441,7 @@ fn load_program_recursive(
             );
         }
 
+        merged.consts.extend(imported.consts);
         merged.enums.extend(imported.enums);
         merged.structs.extend(imported.structs);
         merged.functions.extend(imported.functions);
@@ -452,6 +453,7 @@ fn load_program_recursive(
         &module_aliases,
         &visible_imported_functions,
     );
+    merged.consts.extend(rewritten.consts);
     merged.enums.extend(rewritten.enums);
     merged.structs.extend(rewritten.structs);
     merged.functions.extend(rewritten.functions);
@@ -476,6 +478,7 @@ fn parse_program_from_file(path: &Path) -> Result<ast::Program, String> {
 fn empty_program() -> ast::Program {
     ast::Program {
         imports: Vec::new(),
+        consts: Vec::new(),
         enums: Vec::new(),
         structs: Vec::new(),
         functions: Vec::new(),
@@ -562,6 +565,11 @@ fn rewrite_program(
 
     ast::Program {
         imports: Vec::new(),
+        consts: program
+            .consts
+            .into_iter()
+            .map(|const_def| rewrite_const(const_def, module_aliases, &visible_functions))
+            .collect(),
         enums: program.enums,
         structs: program.structs,
         functions: program
@@ -570,6 +578,15 @@ fn rewrite_program(
             .map(|function| rewrite_function(function, module_aliases, &visible_functions))
             .collect(),
     }
+}
+
+fn rewrite_const(
+    mut const_def: ast::ConstDef,
+    module_aliases: &HashMap<String, String>,
+    visible_functions: &HashMap<String, String>,
+) -> ast::ConstDef {
+    const_def.value = rewrite_expr(const_def.value, module_aliases, visible_functions);
+    const_def
 }
 
 fn rewrite_function(
@@ -1204,6 +1221,8 @@ mod tests {
         let source = r#"
         import "lib/math.mnst" as math;
 
+        const LIMIT: usize = 64 as usize;
+
         extern fn puts(text: *u8) -> i32;
 
         enum Value {
@@ -1219,7 +1238,7 @@ mod tests {
 
         fn main(argc: i32, argv: **u8) -> i32 {
             // This sample intentionally touches every lexer family.
-            let mut value: i32 = sizeof(Pair) as i32;
+            let mut value: i32 = (sizeof(Pair) + LIMIT) as i32;
             value = value + 10 - 3 * 2 / 1;
             let ptr: *i32 = &value;
 
@@ -1363,7 +1382,8 @@ mod tests {
             TokenKind::Ident => 46,
             TokenKind::Int => 47,
             TokenKind::Str => 48,
-            TokenKind::Eof => 49,
+            TokenKind::Const => 49,
+            TokenKind::Eof => 50,
         }
     }
 

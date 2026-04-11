@@ -93,6 +93,7 @@ impl Lexer {
             "enum" => TokenKind::Enum,
             "match" => TokenKind::Match,
             "sizeof" => TokenKind::SizeOf,
+            "const" => TokenKind::Const,
             "let" => TokenKind::Let,
             "mut" => TokenKind::Mut,
             "as" => TokenKind::As,

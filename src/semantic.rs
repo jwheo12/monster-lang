@@ -20,6 +20,11 @@ struct VarInfo {
 }
 
 #[derive(Clone)]
+struct ConstInfo {
+    ty: Type,
+}
+
+#[derive(Clone)]
 struct StructInfo {
     fields: Vec<(String, Type)>,
 }
@@ -40,6 +45,7 @@ struct Analyzer {
     structs: HashMap<String, StructInfo>,
     enums: HashMap<String, EnumInfo>,
     enum_variants: HashMap<String, EnumVariantInfo>,
+    consts: HashMap<String, ConstInfo>,
     functions: HashMap<String, FunctionSig>,
     scopes: Vec<HashMap<String, VarInfo>>,
     current_return_type: Option<Type>,
@@ -52,6 +58,7 @@ impl Analyzer {
             structs: HashMap::new(),
             enums: HashMap::new(),
             enum_variants: HashMap::new(),
+            consts: HashMap::new(),
             functions: HashMap::new(),
             scopes: Vec::new(),
             current_return_type: None,
@@ -155,6 +162,55 @@ impl Analyzer {
             );
         }
 
+        for const_def in &program.consts {
+            self.ensure_value_type(&const_def.ty, "constant")?;
+
+            if self.structs.contains_key(&const_def.name)
+                || self.enums.contains_key(&const_def.name)
+            {
+                return Err(format!(
+                    "constant '{}' conflicts with a type name",
+                    const_def.name
+                ));
+            }
+
+            if self.enum_variants.contains_key(&const_def.name) {
+                return Err(format!(
+                    "constant '{}' conflicts with enum variant of the same name",
+                    const_def.name
+                ));
+            }
+
+            if self.functions.contains_key(&const_def.name) {
+                return Err(format!(
+                    "constant '{}' conflicts with function of the same name",
+                    const_def.name
+                ));
+            }
+
+            if self
+                .consts
+                .insert(
+                    const_def.name.clone(),
+                    ConstInfo {
+                        ty: const_def.ty.clone(),
+                    },
+                )
+                .is_some()
+            {
+                return Err(format!("duplicate constant '{}'", const_def.name));
+            }
+        }
+
+        for const_def in &program.consts {
+            let value_ty = self.analyze_const_expr(&const_def.value)?;
+            self.expect_type(
+                &value_ty,
+                &const_def.ty,
+                &format!("initializer for constant '{}'", const_def.name),
+            )?;
+        }
+
         for func in &program.functions {
             for (_, ty) in &func.params {
                 self.ensure_value_type(ty, "function parameter")?;
@@ -169,6 +225,13 @@ impl Analyzer {
             if self.enum_variants.contains_key(&func.name) {
                 return Err(format!(
                     "function '{}' conflicts with enum variant of the same name",
+                    func.name
+                ));
+            }
+
+            if self.consts.contains_key(&func.name) {
+                return Err(format!(
+                    "function '{}' conflicts with constant of the same name",
                     func.name
                 ));
             }
@@ -433,6 +496,8 @@ impl Analyzer {
             Expr::Var(name) => {
                 if let Some(var) = self.lookup_var(name) {
                     Ok(var.ty.clone())
+                } else if let Some(const_info) = self.consts.get(name) {
+                    Ok(const_info.ty.clone())
                 } else if let Some(variant) = self.enum_variants.get(name) {
                     if variant.payload_ty.is_some() {
                         Err(format!("enum variant '{}' requires a payload value", name))
@@ -671,10 +736,15 @@ impl Analyzer {
 
     fn analyze_place_expr(&mut self, expr: &Expr) -> Result<Type, String> {
         match expr {
-            Expr::Var(name) => self
-                .lookup_var(name)
-                .map(|var| var.ty.clone())
-                .ok_or_else(|| format!("use of undeclared variable '{name}'")),
+            Expr::Var(name) => {
+                if let Some(var) = self.lookup_var(name) {
+                    Ok(var.ty.clone())
+                } else if self.consts.contains_key(name) {
+                    Err(format!("constant '{name}' is not addressable"))
+                } else {
+                    Err(format!("use of undeclared variable '{name}'"))
+                }
+            }
             Expr::FieldAccess { base, field } => {
                 let base_ty = self.analyze_place_expr(base)?;
                 let Type::Named(struct_name) = base_ty else {
@@ -734,6 +804,82 @@ impl Analyzer {
 
     fn lookup_var(&self, name: &str) -> Option<&VarInfo> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
+    }
+
+    fn analyze_const_expr(&mut self, expr: &Expr) -> Result<Type, String> {
+        match expr {
+            Expr::Int(_) => Ok(Type::I32),
+            Expr::Bool(_) => Ok(Type::Bool),
+            Expr::Str(_) => Ok(Type::Str),
+            Expr::SizeOf(ty) => {
+                self.ensure_value_type(ty, "sizeof operand")?;
+                Ok(Type::USize)
+            }
+            Expr::Cast { expr, ty } => {
+                self.ensure_value_type(ty, "constant cast target")?;
+                let expr_ty = self.analyze_const_expr(expr)?;
+
+                if can_cast(&expr_ty, ty) {
+                    Ok(ty.clone())
+                } else {
+                    Err(format!(
+                        "cannot cast {} to {} in constant initializer",
+                        type_name(&expr_ty),
+                        type_name(ty)
+                    ))
+                }
+            }
+            Expr::Binary { op, left, right } => {
+                let left_ty = self.analyze_const_expr(left)?;
+                let right_ty = self.analyze_const_expr(right)?;
+
+                match op {
+                    BinOp::Or | BinOp::And => {
+                        self.expect_type(&left_ty, &Type::Bool, "left-hand logical constant")?;
+                        self.expect_type(&right_ty, &Type::Bool, "right-hand logical constant")?;
+                        Ok(Type::Bool)
+                    }
+                    BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
+                        self.expect_integer_type(&left_ty, "left-hand arithmetic constant")?;
+                        self.expect_type(&right_ty, &left_ty, "right-hand arithmetic constant")?;
+                        Ok(left_ty)
+                    }
+                    BinOp::Eq | BinOp::Ne => {
+                        self.expect_type(&right_ty, &left_ty, "constant comparison operand")?;
+                        Ok(Type::Bool)
+                    }
+                    BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+                        self.expect_integer_type(&left_ty, "left-hand comparison constant")?;
+                        self.expect_type(&right_ty, &left_ty, "right-hand comparison constant")?;
+                        Ok(Type::Bool)
+                    }
+                }
+            }
+            Expr::Unary { op, expr } => match op {
+                UnaryOp::Neg => {
+                    let expr_ty = self.analyze_const_expr(expr)?;
+                    self.expect_type(&expr_ty, &Type::I32, "unary '-' constant")?;
+                    Ok(Type::I32)
+                }
+                UnaryOp::Not => {
+                    let expr_ty = self.analyze_const_expr(expr)?;
+                    self.expect_type(&expr_ty, &Type::Bool, "unary '!' constant")?;
+                    Ok(Type::Bool)
+                }
+                UnaryOp::AddrOf | UnaryOp::Deref => {
+                    Err("constant initializers cannot use pointer address/deref operators".into())
+                }
+            },
+            Expr::Var(_)
+            | Expr::Match { .. }
+            | Expr::ArrayLiteral(_)
+            | Expr::StructLiteral { .. }
+            | Expr::FieldAccess { .. }
+            | Expr::Index { .. }
+            | Expr::Call { .. } => {
+                Err("constant initializer must be a compile-time scalar expression".into())
+            }
+        }
     }
 
     fn expect_type(&self, actual: &Type, expected: &Type, context: &str) -> Result<(), String> {
@@ -1996,6 +2142,64 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_global_const_declarations() {
+        let result = analyze_source(
+            r#"
+            const LIMIT: usize = 1024 as usize;
+            const ENABLED: bool = true && !false;
+            const GREETING: str = "hello";
+
+            fn main() -> i32 {
+                if ENABLED {
+                    print_ln_str(GREETING);
+                    return LIMIT as i32;
+                }
+
+                return 0;
+            }
+            "#,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_non_constexpr_global_const_initializer() {
+        let result = analyze_source(
+            r#"
+            const VALUE: i32 = read_i32();
+
+            fn main() -> i32 {
+                return VALUE;
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("constant initializer must be a compile-time scalar expression")
+        ));
+    }
+
+    #[test]
+    fn rejects_const_and_function_name_conflict() {
+        let result = analyze_source(
+            r#"
+            const main: i32 = 1;
+
+            fn main() -> i32 {
+                return 0;
+            }
+            "#,
+        );
+
+        assert!(matches!(
+            result,
+            Err(message) if message.contains("function 'main' conflicts with constant of the same name")
+        ));
     }
 
     #[test]

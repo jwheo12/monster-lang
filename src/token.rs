@@ -48,6 +48,7 @@ pub enum TokenKind {
     Ident,
     Int,
     Str,
+    Const,
     Eof,
 }
 

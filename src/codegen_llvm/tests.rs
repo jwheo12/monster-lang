@@ -36,6 +36,7 @@ fn emits_function_and_arithmetic_ir() {
 fn sanitizes_namespaced_function_symbols() {
     let program = Program {
         imports: Vec::new(),
+        consts: Vec::new(),
         enums: Vec::new(),
         structs: Vec::new(),
         functions: vec![
@@ -484,6 +485,27 @@ fn emits_u8_usize_and_as_casts() {
     assert!(ir.contains("zext i8 %"));
     assert!(ir.contains("add i64 %"));
     assert!(ir.contains("trunc i64 %"));
+}
+
+#[test]
+fn emits_global_const_values_inline() {
+    let ir = emit_source(
+        r#"
+        const LIMIT: usize = 64 as usize;
+        const GREETING: str = "const works";
+
+        fn main() -> i32 {
+            print_ln_str(GREETING);
+            return LIMIT as i32;
+        }
+        "#,
+    );
+
+    assert!(ir.contains("@.str.user."));
+    assert!(ir.contains("const works"));
+    assert!(ir.contains("call void @__monster_builtin_print_ln_str(ptr getelementptr"));
+    assert!(ir.contains("sext i32 64 to i64"));
+    assert!(ir.contains("trunc i64 %cast."));
 }
 
 #[test]

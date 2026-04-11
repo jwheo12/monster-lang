@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::ast::{BinOp, Expr, Function, MatchArm, Stmt, Type, UnaryOp};
 
 use super::{
-    EnumLayout, EnumVariantInfo, FunctionSig, StringLiteralData, StructLayout,
+    ConstInfo, EnumLayout, EnumVariantInfo, FunctionSig, StringLiteralData, StructLayout,
     runtime::llvm_function_name,
     util::{integer_bit_width, is_signed_integer_type, llvm_type},
 };
@@ -38,6 +38,7 @@ pub(super) struct FunctionEmitter<'a> {
     struct_layouts: &'a HashMap<String, StructLayout>,
     enum_layouts: &'a HashMap<String, EnumLayout>,
     enum_variants: &'a HashMap<String, EnumVariantInfo>,
+    consts: &'a HashMap<String, ConstInfo>,
     string_literals: &'a HashMap<String, StringLiteralData>,
     entry_allocas: Vec<String>,
     body_lines: Vec<String>,
@@ -57,6 +58,7 @@ impl<'a> FunctionEmitter<'a> {
         struct_layouts: &'a HashMap<String, StructLayout>,
         enum_layouts: &'a HashMap<String, EnumLayout>,
         enum_variants: &'a HashMap<String, EnumVariantInfo>,
+        consts: &'a HashMap<String, ConstInfo>,
         string_literals: &'a HashMap<String, StringLiteralData>,
     ) -> Self {
         Self {
@@ -65,6 +67,7 @@ impl<'a> FunctionEmitter<'a> {
             struct_layouts,
             enum_layouts,
             enum_variants,
+            consts,
             string_literals,
             entry_allocas: Vec::new(),
             body_lines: Vec::new(),
@@ -356,6 +359,18 @@ impl<'a> FunctionEmitter<'a> {
                         repr: temp,
                         ty: local.ty,
                     })
+                } else if let Some(const_info) = self.consts.get(name) {
+                    let value = self.emit_expr(&const_info.value)?;
+                    if value.ty == const_info.ty {
+                        Ok(value)
+                    } else {
+                        Err(format!(
+                            "internal error: constant '{}' emitted {} but was declared {}",
+                            name,
+                            self.llvm_type(&value.ty),
+                            self.llvm_type(&const_info.ty)
+                        ))
+                    }
                 } else if let Some(variant) = self.enum_variants.get(name) {
                     if variant.payload_ty.is_some() {
                         Err(format!(
@@ -1519,10 +1534,13 @@ impl<'a> FunctionEmitter<'a> {
     fn emit_place(&mut self, expr: &Expr) -> Result<Place, String> {
         match expr {
             Expr::Var(name) => {
-                let local = self
-                    .lookup_local(name)
-                    .cloned()
-                    .ok_or_else(|| format!("internal error: unknown variable '{name}'"))?;
+                let local = self.lookup_local(name).cloned().ok_or_else(|| {
+                    if self.consts.contains_key(name) {
+                        format!("internal error: constant '{name}' is not addressable")
+                    } else {
+                        format!("internal error: unknown variable '{name}'")
+                    }
+                })?;
                 Ok(Place {
                     ptr: local.ptr,
                     ty: local.ty,

@@ -47,6 +47,7 @@ enum TokenKind {
     Ident,
     Int,
     Str,
+    Const,
     Eof,
 }
 
@@ -118,6 +119,7 @@ fn token_kind_value(kind: TokenKind) -> i32 {
         Ident => 46,
         Int => 47,
         Str => 48,
-        Eof => 49,
+        Const => 49,
+        Eof => 50,
     };
 }

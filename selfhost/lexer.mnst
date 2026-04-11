@@ -1,5 +1,17 @@
 import "token.mnst";
 
+const ASCII_A_UPPER: u8 = 65 as u8;
+const ASCII_Z_UPPER: u8 = 90 as u8;
+const ASCII_A_LOWER: u8 = 97 as u8;
+const ASCII_Z_LOWER: u8 = 122 as u8;
+const ASCII_UNDERSCORE: u8 = 95 as u8;
+const ASCII_ZERO: u8 = 48 as u8;
+const ASCII_NINE: u8 = 57 as u8;
+const ASCII_SPACE: u8 = 32 as u8;
+const ASCII_NEWLINE: u8 = 10 as u8;
+const ASCII_CARRIAGE_RETURN: u8 = 13 as u8;
+const ASCII_TAB: u8 = 9 as u8;
+
 struct TokenBuffer {
     data: *Token,
     len: usize,
@@ -29,11 +41,11 @@ fn push_token(tokens: TokenBuffer, token: Token) -> TokenBuffer {
 }
 
 fn is_alpha(c: u8) -> bool {
-    return (c >= (65 as u8) && c <= (90 as u8)) || (c >= (97 as u8) && c <= (122 as u8)) || c == (95 as u8);
+    return (c >= ASCII_A_UPPER && c <= ASCII_Z_UPPER) || (c >= ASCII_A_LOWER && c <= ASCII_Z_LOWER) || c == ASCII_UNDERSCORE;
 }
 
 fn is_digit(c: u8) -> bool {
-    return c >= (48 as u8) && c <= (57 as u8);
+    return c >= ASCII_ZERO && c <= ASCII_NINE;
 }
 
 fn is_alnum(c: u8) -> bool {
@@ -41,7 +53,7 @@ fn is_alnum(c: u8) -> bool {
 }
 
 fn is_space(c: u8) -> bool {
-    return c == (32 as u8) || c == (10 as u8) || c == (13 as u8) || c == (9 as u8);
+    return c == ASCII_SPACE || c == ASCII_NEWLINE || c == ASCII_CARRIAGE_RETURN || c == ASCII_TAB;
 }
 
 fn keyword_eq(data: *u8, start: usize, len: usize, text: str) -> bool {
@@ -67,6 +79,8 @@ fn classify_identifier(data: *u8, start: usize, len: usize) -> TokenKind {
         return Match;
     } else if keyword_eq(data, start, len, "sizeof") {
         return SizeOf;
+    } else if keyword_eq(data, start, len, "const") {
+        return Const;
     } else if keyword_eq(data, start, len, "let") {
         return Let;
     } else if keyword_eq(data, start, len, "mut") {

@@ -1,0 +1,12 @@
+const LIMIT: usize = 64 as usize;
+const ENABLED: bool = true && !false;
+const MESSAGE: str = "Monster const works";
+
+fn main() -> i32 {
+    if ENABLED {
+        print_ln_str(MESSAGE);
+        return LIMIT as i32;
+    }
+
+    return 0;
+}

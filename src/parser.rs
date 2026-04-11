@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use crate::ast::{
-    BinOp, EnumDef, EnumVariant, Expr, Function, ImportDecl, MatchArm, MatchPattern, Program, Stmt,
-    StructDef, Type, UnaryOp,
+    BinOp, ConstDef, EnumDef, EnumVariant, Expr, Function, ImportDecl, MatchArm, MatchPattern,
+    Program, Stmt, StructDef, Type, UnaryOp,
 };
 use crate::token::{Token, TokenKind};
 
@@ -153,6 +153,7 @@ impl Parser {
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut imports = Vec::new();
+        let mut consts = Vec::new();
         let mut enums = Vec::new();
         let mut structs = Vec::new();
         let mut functions = Vec::new();
@@ -160,6 +161,8 @@ impl Parser {
         while !self.at(TokenKind::Eof) {
             if self.at(TokenKind::Import) {
                 imports.push(self.parse_import()?);
+            } else if self.at(TokenKind::Const) {
+                consts.push(self.parse_const()?);
             } else if self.at(TokenKind::Enum) {
                 enums.push(self.parse_enum()?);
             } else if self.at(TokenKind::Struct) {
@@ -173,6 +176,7 @@ impl Parser {
 
         Ok(Program {
             imports,
+            consts,
             enums,
             structs,
             functions,
@@ -190,6 +194,18 @@ impl Parser {
         };
         self.expect(TokenKind::Semicolon)?;
         Ok(ImportDecl { path, alias })
+    }
+
+    fn parse_const(&mut self) -> Result<ConstDef, String> {
+        self.expect(TokenKind::Const)?;
+        let name = self.expect_ident()?.lexeme;
+        self.expect(TokenKind::Colon)?;
+        let ty = self.parse_type()?;
+        self.expect(TokenKind::Equal)?;
+        let value = self.parse_expr()?;
+        self.expect(TokenKind::Semicolon)?;
+
+        Ok(ConstDef { name, ty, value })
     }
 
     fn parse_struct(&mut self) -> Result<StructDef, String> {
@@ -950,7 +966,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::Parser;
-    use crate::ast::{BinOp, Expr, ImportDecl, Stmt, Type, UnaryOp};
+    use crate::ast::{BinOp, ConstDef, Expr, ImportDecl, Stmt, Type, UnaryOp};
     use crate::lexer::Lexer;
 
     fn parse_source(source: &str) -> crate::ast::Program {
@@ -998,6 +1014,31 @@ mod tests {
             vec![ImportDecl {
                 path: "std/io.mnst".to_string(),
                 alias: Some("io".to_string()),
+            }]
+        );
+    }
+
+    #[test]
+    fn parses_const_declaration() {
+        let program = parse_source(
+            r#"
+            const LIMIT: usize = 1024 as usize;
+
+            fn main() -> i32 {
+                return LIMIT as i32;
+            }
+            "#,
+        );
+
+        assert_eq!(
+            program.consts,
+            vec![ConstDef {
+                name: "LIMIT".to_string(),
+                ty: Type::USize,
+                value: Expr::Cast {
+                    expr: Box::new(Expr::Int(1024)),
+                    ty: Type::USize,
+                },
             }]
         );
     }

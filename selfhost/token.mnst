@@ -23,3 +23,49 @@ enum TokenKind {
     Symbol,
     Eof,
 }
+
+struct Token {
+    kind: TokenKind,
+    start: usize,
+    len: usize,
+    line: i32,
+    column: i32,
+}
+
+fn make_token(kind: TokenKind, start: usize, len: usize, line: i32, column: i32) -> Token {
+    return Token {
+        kind: kind,
+        start: start,
+        len: len,
+        line: line,
+        column: column
+    };
+}
+
+fn token_kind_value(kind: TokenKind) -> i32 {
+    return match kind {
+        Extern => 1,
+        Import => 2,
+        Fn => 3,
+        Struct => 4,
+        Enum => 5,
+        Match => 6,
+        SizeOf => 7,
+        Let => 8,
+        Mut => 9,
+        As => 10,
+        Return => 11,
+        If => 12,
+        Else => 13,
+        While => 14,
+        Break => 15,
+        Continue => 16,
+        True => 17,
+        False => 18,
+        Ident => 19,
+        Int => 20,
+        Str => 21,
+        Symbol => 22,
+        Eof => 23,
+    };
+}

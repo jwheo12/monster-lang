@@ -1,5 +1,33 @@
 import "token.mnst";
 
+struct TokenBuffer {
+    data: *Token,
+    len: usize,
+    cap: usize,
+}
+
+extern fn calloc(count: usize, size: usize) -> *Token;
+
+fn new_token_buffer(cap: usize) -> TokenBuffer {
+    return TokenBuffer {
+        data: calloc(cap, sizeof(Token)),
+        len: 0 as usize,
+        cap: cap
+    };
+}
+
+fn push_token(tokens: TokenBuffer, token: Token) -> TokenBuffer {
+    let mut out: TokenBuffer = tokens;
+
+    if out.len < out.cap {
+        let data: *Token = out.data;
+        data[out.len] = token;
+        out.len = out.len + (1 as usize);
+    }
+
+    return out;
+}
+
 fn is_alpha(c: u8) -> bool {
     return (c >= (65 as u8) && c <= (90 as u8)) || (c >= (97 as u8) && c <= (122 as u8)) || c == (95 as u8);
 }
@@ -141,60 +169,78 @@ fn scan_symbol(data: *u8, start: usize, len: usize) -> usize {
     return start + (1 as usize);
 }
 
-fn count_tokens(data: *u8, len: usize) -> i32 {
+fn lex(data: *u8, len: usize) -> TokenBuffer {
+    let mut tokens: TokenBuffer = new_token_buffer(len + (1 as usize));
     let mut i: usize = 0 as usize;
-    let mut count: i32 = 0;
+    let mut line: i32 = 1;
+    let mut column: i32 = 1;
 
     while i < len {
         let c: u8 = data[i];
 
         if is_space(c) {
+            if c == (10 as u8) {
+                line = line + 1;
+                column = 1;
+            } else {
+                column = column + 1;
+            }
+
             i = i + (1 as usize);
         } else if c == (47 as u8) && i + (1 as usize) < len && data[i + (1 as usize)] == (47 as u8) {
-            i = skip_line_comment(data, i, len);
+            let next: usize = skip_line_comment(data, i, len);
+            column = column + ((next - i) as i32);
+            i = next;
         } else if is_alpha(c) {
             let start: usize = i;
+            let token_line: i32 = line;
+            let token_column: i32 = column;
             i = scan_identifier(data, i, len);
             let kind: TokenKind = classify_identifier(data, start, i - start);
+            tokens = push_token(tokens, make_token(kind, start, i - start, token_line, token_column));
 
-            let score: i32 = match kind {
-                Extern => 0,
-                Import => 0,
-                Fn => 0,
-                Struct => 0,
-                Enum => 0,
-                Match => 0,
-                SizeOf => 0,
-                Let => 0,
-                Mut => 0,
-                As => 0,
-                Return => 0,
-                If => 0,
-                Else => 0,
-                While => 0,
-                Break => 0,
-                Continue => 0,
-                True => 0,
-                False => 0,
-                Ident => 0,
-                Int => 0,
-                Str => 0,
-                Symbol => 0,
-                Eof => 0,
-            };
-
-            count = count + 1 + score;
+            column = column + ((i - start) as i32);
         } else if is_digit(c) {
+            let start: usize = i;
+            let token_line: i32 = line;
+            let token_column: i32 = column;
             i = scan_number(data, i, len);
-            count = count + 1;
+            tokens = push_token(tokens, make_token(Int, start, i - start, token_line, token_column));
+            column = column + ((i - start) as i32);
         } else if c == (34 as u8) {
+            let start: usize = i;
+            let token_line: i32 = line;
+            let token_column: i32 = column;
             i = scan_string(data, i, len);
-            count = count + 1;
+            tokens = push_token(tokens, make_token(Str, start, i - start, token_line, token_column));
+            column = column + ((i - start) as i32);
         } else {
+            let start: usize = i;
+            let token_line: i32 = line;
+            let token_column: i32 = column;
             i = scan_symbol(data, i, len);
-            count = count + 1;
+            tokens = push_token(tokens, make_token(Symbol, start, i - start, token_line, token_column));
+            column = column + ((i - start) as i32);
         }
     }
 
-    return count + 1;
+    tokens = push_token(tokens, make_token(Eof, len, 0 as usize, line, column));
+    return tokens;
+}
+
+fn count_tokens(data: *u8, len: usize) -> i32 {
+    let tokens: TokenBuffer = lex(data, len);
+    return tokens.len as i32;
+}
+
+fn checksum_tokens(tokens: TokenBuffer) -> i32 {
+    let mut i: usize = 0 as usize;
+    let mut checksum: i32 = 0;
+
+    while i < tokens.len {
+        checksum = checksum + token_kind_value(tokens.data[i].kind);
+        i = i + (1 as usize);
+    }
+
+    return checksum;
 }

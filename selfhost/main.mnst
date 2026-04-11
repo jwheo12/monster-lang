@@ -1,4 +1,4 @@
-import "lexer.mnst" as lexer;
+import "lexer.mnst";
 
 extern fn free(ptr: *u8) -> void;
 
@@ -11,11 +11,12 @@ fn main(argc: i32, argv: **u8) -> i32 {
 
     let mut len: usize = 0 as usize;
     let data: *u8 = read_file(path, &len);
-    let tokens: i32 = lexer.count_tokens(data, len);
+    let tokens: TokenBuffer = lex(data, len);
 
     print_ln_str("Monster selfhost lexer prototype");
     print_ln_str(path);
-    print_ln_i32(tokens);
+    print_ln_i32(tokens.len as i32);
+    print_ln_i32(checksum_tokens(tokens));
 
     free(data);
     return 0;

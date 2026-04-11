@@ -31,21 +31,21 @@
 
           <section class="section" id="release">
             <h2>Release Installer</h2>
-            <p>Linux and macOS:</p>
-            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash
+            <p>Linux and macOS global install:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash
 mst --help</code></pre>
             <p>Windows PowerShell:</p>
             <pre><code>irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex
 mst --version</code></pre>
-            <p>System-wide install on Unix-like systems:</p>
-            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash
-mst --version</code></pre>
+            <p>User-local install without <code>sudo</code>:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash
+mst --help</code></pre>
           </section>
 
           <section class="section" id="pinning">
             <h2>Pin a Specific Release</h2>
-            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc3 bash</code></pre>
-            <pre><code>$env:MST_VERSION = "v0.1.0-rc3"
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc4 bash</code></pre>
+            <pre><code>$env:MST_VERSION = "v0.1.0-rc4"
 irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex</code></pre>
           </section>
 
@@ -76,8 +76,10 @@ mst --help</code></pre>
 
           <section class="section" id="update">
             <h2>Update</h2>
-            <p>The release installer also doubles as the update path:</p>
-            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash</code></pre>
+            <p>Use the compiler itself to reinstall the latest published release into its current install directory:</p>
+            <pre><code>mst -upgrade</code></pre>
+            <p>The release installer also still works as a manual update path:</p>
+            <pre><code>curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash</code></pre>
           </section>
         </div>
 
@@ -94,7 +96,7 @@ mst --help</code></pre>
           </div>
           <div class="note">
             <p><strong>Default install path</strong></p>
-            <p>Unix-like systems install into <code>~/.local/bin</code> by default. Windows installs into <code>%LOCALAPPDATA%\Programs\mst\bin</code>.</p>
+            <p>The recommended Unix-like global install goes to <code>/usr/local/bin</code>. Without <code>sudo</code>, the installer uses <code>~/.local/bin</code>. Windows installs into <code>%LOCALAPPDATA%\Programs\mst\bin</code>.</p>
           </div>
           <div class="note">
             <p><strong>Useful links</strong></p>

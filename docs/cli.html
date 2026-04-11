@@ -36,6 +36,7 @@ mst emit-llvm exam.mnst
 mst build exam.mnst
 mst run exam.mnst
 mst clean
+mst -upgrade
 mst --help
 mst --version</code></pre>
           </section>
@@ -66,6 +67,15 @@ mst run --debug exam.mnst</code></pre>
               This keeps project roots clean while preserving artifacts useful for debugging.
             </p>
           </section>
+
+          <section class="section" id="upgrade">
+            <h2>Update Compiler</h2>
+            <pre><code>mst -upgrade</code></pre>
+            <p>
+              This downloads the latest published GitHub Release and installs it back into the
+              current <code>mst</code> install directory. Global installs may ask for <code>sudo</code>.
+            </p>
+          </section>
         </div>
 
         <aside class="sidebar">
@@ -76,6 +86,7 @@ mst run --debug exam.mnst</code></pre>
               <li><a href="#debug">Debug builds</a></li>
               <li><a href="#args">Program arguments</a></li>
               <li><a href="#output">Build output</a></li>
+              <li><a href="#upgrade">Update compiler</a></li>
             </ul>
           </div>
           <div class="note">

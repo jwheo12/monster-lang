@@ -2,6 +2,22 @@ import "lexer.mnst";
 
 extern fn free(ptr: *u8) -> void;
 
+fn print_token_kind_values(tokens: TokenBuffer) -> void {
+    let mut i: usize = 0 as usize;
+
+    while i < tokens.len {
+        print_i32(token_kind_value(tokens.data[i].kind));
+        i = i + (1 as usize);
+
+        if i < tokens.len {
+            print_str(" ");
+        }
+    }
+
+    print_ln_str("");
+    return;
+}
+
 fn main(argc: i32, argv: **u8) -> i32 {
     let mut path: str = "exam.mnst";
 
@@ -15,8 +31,13 @@ fn main(argc: i32, argv: **u8) -> i32 {
 
     print_ln_str("Monster selfhost lexer prototype");
     print_ln_str(path);
-    print_ln_i32(tokens.len as i32);
-    print_ln_i32(checksum_tokens(tokens));
+
+    if argc > 2 && str_eq(argv[2] as str, "--dump-kinds") {
+        print_token_kind_values(tokens);
+    } else {
+        print_ln_i32(tokens.len as i32);
+        print_ln_i32(checksum_tokens(tokens));
+    }
 
     free(data);
     return 0;

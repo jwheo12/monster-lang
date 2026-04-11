@@ -27,14 +27,21 @@ Live site:
 
 ## Install
 
-Install from GitHub Releases with one command:
+Install globally from GitHub Releases with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash
+mst --help
+```
+
+This installer supports Linux and macOS, and downloads the most recent published release, including prereleases.
+
+User-local install without `sudo`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | bash
 mst --help
 ```
-
-This installer supports Linux and macOS, and downloads the most recent published release, including prereleases.
 
 Install on Windows PowerShell:
 
@@ -43,28 +50,27 @@ irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-
 mst --version
 ```
 
-Install system-wide:
+Update to the latest published release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | sudo env PREFIX=/usr/local bash
-mst --version
+mst -upgrade
 ```
 
 Pin a specific release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc3 bash
+curl -fsSL https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh | env MST_VERSION=v0.1.0-rc4 bash
 ```
 
 Pin a specific release on Windows PowerShell:
 
 ```powershell
-$env:MST_VERSION = "v0.1.0-rc3"
+$env:MST_VERSION = "v0.1.0-rc4"
 irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1 | iex
 ```
 
-The release installer currently supports Linux x86_64, macOS x86_64, macOS arm64, and Windows x86_64.
-On Linux and macOS it installs `mst` into `~/.local/bin` by default.
+The release installer currently supports Linux x86_64, Linux ARM64, macOS x86_64, macOS arm64, and Windows x86_64.
+The recommended Linux/macOS install path is `/usr/local/bin` via `PREFIX=/usr/local`; without `sudo`, the installer uses `~/.local/bin`.
 On Windows it installs `mst.exe` into `%LOCALAPPDATA%\Programs\mst\bin` and adds that directory to the user `PATH`.
 For `mst build` and `mst run`, you still need `clang-18` or `clang`, and `opt-18` or `opt` on your `PATH`.
 
@@ -105,6 +111,7 @@ mst run examples/argv.mnst -- hello
 mst run examples/file_io.mnst -- exam.mnst
 mst run examples/enum.mnst
 mst clean
+mst -upgrade
 mst --help
 mst --version
 ```

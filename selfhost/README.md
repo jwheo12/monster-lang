@@ -16,6 +16,13 @@ mst run selfhost/main.mnst -- exam.mnst
 mst run selfhost/main.mnst -- examples/match.mnst
 ```
 
+The Rust test suite also builds this self-hosted lexer and checks its full token
+kind sequence against the Rust lexer on a broad syntax sample:
+
+```bash
+cargo test selfhost_lexer_matches_rust_lexer_kind_sequence
+```
+
 This is intentionally not a full replacement for the Rust lexer yet. It is the
 first checked-in self-hosting slice: Monster code processing Monster source and
 building a small token buffer with token kinds close to the Rust lexer.

@@ -15,6 +15,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+#[cfg(not(windows))]
+const UNIX_INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.sh";
+#[cfg(windows)]
+const WINDOWS_INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-release.ps1";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BuildMode {
     Release,
@@ -62,6 +69,13 @@ fn real_main() -> Result<(), String> {
         "-V" | "--version" | "version" => {
             println!("mst {}", env!("CARGO_PKG_VERSION"));
             Ok(())
+        }
+        "-upgrade" | "--upgrade" | "upgrade" => {
+            if args.next().is_some() {
+                return Err("too many arguments".into());
+            }
+
+            upgrade_to_latest()
         }
         "clean" => {
             if args.next().is_some() {
@@ -127,12 +141,14 @@ fn usage() -> String {
         "  mst run <file.mnst> [-- <args...>]",
         "  mst run --debug <file.mnst> [-- <args...>]",
         "  mst clean",
+        "  mst -upgrade",
         "  mst help",
         "  mst version",
         "",
         "options:",
         "  -h, --help      show this help",
         "  -V, --version   show compiler version",
+        "  -upgrade        install the latest published release",
         "  --debug         build without LLVM -O2 and link with clang -g -O0",
         "  --              pass remaining arguments to the compiled program",
     ]
@@ -148,6 +164,133 @@ fn single_input_arg(mut args: impl Iterator<Item = String>) -> Result<String, St
     }
 
     Ok(input)
+}
+
+fn upgrade_to_latest() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        upgrade_to_latest_windows()
+    }
+
+    #[cfg(not(windows))]
+    {
+        upgrade_to_latest_unix()
+    }
+}
+
+#[cfg(not(windows))]
+fn upgrade_to_latest_unix() -> Result<(), String> {
+    let bin_dir = upgrade_bin_dir()?;
+    let use_sudo = should_use_sudo_for_upgrade(&bin_dir);
+    let command = if use_sudo {
+        r#"curl -fsSL "$MST_UPGRADE_INSTALL_URL" | sudo env BIN_DIR="$MST_UPGRADE_BIN_DIR" bash"#
+    } else {
+        r#"curl -fsSL "$MST_UPGRADE_INSTALL_URL" | env BIN_DIR="$MST_UPGRADE_BIN_DIR" bash"#
+    };
+
+    println!("[mst] updating latest release into {}", bin_dir.display());
+
+    if use_sudo {
+        println!("[mst] global install detected; sudo may ask for your password");
+    }
+
+    let status = Command::new("bash")
+        .arg("-lc")
+        .arg(command)
+        .env("MST_UPGRADE_INSTALL_URL", UNIX_INSTALL_SCRIPT_URL)
+        .env("MST_UPGRADE_BIN_DIR", &bin_dir)
+        .status()
+        .map_err(|e| format!("failed to run release installer: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("release installer failed with status {status}"));
+    }
+
+    Ok(())
+}
+
+#[cfg(windows)]
+fn upgrade_to_latest_windows() -> Result<(), String> {
+    let install_dir = upgrade_bin_dir()?;
+    let command = r#"irm $env:MST_UPGRADE_INSTALL_URL | iex"#;
+
+    println!(
+        "[mst] updating latest release into {}",
+        install_dir.display()
+    );
+
+    let status = Command::new("powershell")
+        .arg("-NoProfile")
+        .arg("-ExecutionPolicy")
+        .arg("Bypass")
+        .arg("-Command")
+        .arg(command)
+        .env("MST_UPGRADE_INSTALL_URL", WINDOWS_INSTALL_SCRIPT_URL)
+        .env("MST_INSTALL_DIR", &install_dir)
+        .status()
+        .map_err(|e| format!("failed to run PowerShell release installer: {e}"))?;
+
+    if !status.success() {
+        return Err(format!("release installer failed with status {status}"));
+    }
+
+    Ok(())
+}
+
+fn upgrade_bin_dir() -> Result<PathBuf, String> {
+    if let Ok(bin_dir) = env::var("MST_UPGRADE_BIN_DIR") {
+        return Ok(PathBuf::from(bin_dir));
+    }
+
+    let current_exe =
+        env::current_exe().map_err(|e| format!("failed to resolve current executable: {e}"))?;
+
+    if is_cargo_target_executable(&current_exe) {
+        return Ok(default_upgrade_bin_dir());
+    }
+
+    current_exe.parent().map(Path::to_path_buf).ok_or_else(|| {
+        format!(
+            "failed to resolve install directory for '{}'",
+            current_exe.display()
+        )
+    })
+}
+
+fn is_cargo_target_executable(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str() == "target")
+}
+
+#[cfg(not(windows))]
+fn default_upgrade_bin_dir() -> PathBuf {
+    PathBuf::from("/usr/local/bin")
+}
+
+#[cfg(windows)]
+fn default_upgrade_bin_dir() -> PathBuf {
+    env::var("LOCALAPPDATA")
+        .map(|path| PathBuf::from(path).join("Programs").join("mst").join("bin"))
+        .unwrap_or_else(|_| PathBuf::from(r"C:\Program Files\mst\bin"))
+}
+
+#[cfg(not(windows))]
+fn should_use_sudo_for_upgrade(bin_dir: &Path) -> bool {
+    if running_as_root() {
+        return false;
+    }
+
+    bin_dir.starts_with("/usr") || bin_dir.starts_with("/opt") || bin_dir.starts_with("/bin")
+}
+
+#[cfg(not(windows))]
+fn running_as_root() -> bool {
+    Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .is_some_and(|uid| uid.trim() == "0")
 }
 
 fn parse_build_args(args: impl Iterator<Item = String>) -> Result<BuildArgs, String> {
@@ -829,10 +972,18 @@ fn find_tool(candidates: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BuildArgs, BuildMode, RunArgs, load_program, parse_build_args, parse_run_args};
+    use super::{
+        BuildArgs, BuildMode, Lexer, RunArgs, build_to_binary, load_program, parse_build_args,
+        parse_run_args,
+    };
+    use crate::token::TokenKind;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    static SELFHOST_LEXER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn parses_release_build_args() {
@@ -879,6 +1030,16 @@ mod tests {
         let err = parse_build_args(vec!["--wat".to_string(), "exam.mnst".to_string()].into_iter())
             .unwrap_err();
         assert!(err.contains("unknown option"));
+    }
+
+    #[test]
+    fn detects_cargo_target_executables_for_upgrade_defaults() {
+        assert!(super::is_cargo_target_executable(Path::new(
+            "/tmp/monster/target/debug/mst"
+        )));
+        assert!(!super::is_cargo_target_executable(Path::new(
+            "/usr/local/bin/mst"
+        )));
     }
 
     #[test]
@@ -1032,6 +1193,178 @@ mod tests {
         assert!(err.contains("import cycle detected"));
 
         fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn selfhost_lexer_matches_rust_lexer_kind_sequence() {
+        let _guard = SELFHOST_LEXER_TEST_LOCK.lock().unwrap();
+        let temp_dir = unique_temp_dir("monster-selfhost-lexer");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let source = r#"
+        import "lib/math.mnst" as math;
+
+        extern fn puts(text: *u8) -> i32;
+
+        enum Value {
+            Int(i32),
+            Flag(bool),
+            Empty,
+        }
+
+        struct Pair {
+            left: i32,
+            right: i32,
+        }
+
+        fn main(argc: i32, argv: **u8) -> i32 {
+            // This sample intentionally touches every lexer family.
+            let mut value: i32 = sizeof(Pair) as i32;
+            value = value + 10 - 3 * 2 / 1;
+            let ptr: *i32 = &value;
+
+            if value >= 10 && argc != 0 {
+                print_str("value\t");
+            } else {
+                print_ln_str("small\n");
+            }
+
+            while value > 0 {
+                value = value - 1;
+
+                if value == 2 || false {
+                    continue;
+                }
+
+                if !true {
+                    break;
+                }
+            }
+
+            let result: i32 = match value {
+                0 => 1,
+                1 => 2,
+                _ => 3,
+            };
+
+            return math.add(result, argv[0][0] as i32) + ptr[0];
+        }
+        "#;
+        let input_path = temp_dir.join("sample.mnst");
+        fs::write(&input_path, source).unwrap();
+
+        let expected = rust_lexer_kind_values(source).unwrap();
+        let selfhost_lexer = build_to_binary("selfhost/main.mnst", BuildMode::Release).unwrap();
+        let output = Command::new(&selfhost_lexer)
+            .arg(&input_path)
+            .arg("--dump-kinds")
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "selfhost lexer failed:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let actual = parse_selfhost_lexer_kind_values(&stdout).unwrap();
+        assert_eq!(actual, expected);
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    fn rust_lexer_kind_values(source: &str) -> Result<Vec<i32>, String> {
+        let tokens = Lexer::new(source).tokenize()?;
+
+        Ok(tokens
+            .iter()
+            .map(|token| token_kind_value(&token.kind))
+            .collect())
+    }
+
+    fn parse_selfhost_lexer_kind_values(stdout: &str) -> Result<Vec<i32>, String> {
+        let mut lines = stdout.lines();
+        let header = lines
+            .next()
+            .ok_or_else(|| format!("missing selfhost lexer header in output:\n{stdout}"))?;
+
+        if header != "Monster selfhost lexer prototype" {
+            return Err(format!(
+                "unexpected selfhost lexer header '{header}' in output:\n{stdout}"
+            ));
+        }
+
+        let _path = lines
+            .next()
+            .ok_or_else(|| format!("missing selfhost lexer path in output:\n{stdout}"))?;
+
+        let kind_line = lines
+            .next()
+            .ok_or_else(|| format!("missing selfhost lexer token kinds in output:\n{stdout}"))?;
+
+        kind_line
+            .split_whitespace()
+            .map(|value| {
+                value
+                    .parse::<i32>()
+                    .map_err(|e| format!("invalid selfhost lexer token kind '{value}': {e}"))
+            })
+            .collect()
+    }
+
+    fn token_kind_value(kind: &TokenKind) -> i32 {
+        match kind {
+            TokenKind::Extern => 1,
+            TokenKind::Import => 2,
+            TokenKind::Fn => 3,
+            TokenKind::Struct => 4,
+            TokenKind::Enum => 5,
+            TokenKind::Match => 6,
+            TokenKind::SizeOf => 7,
+            TokenKind::Let => 8,
+            TokenKind::Mut => 9,
+            TokenKind::As => 10,
+            TokenKind::Return => 11,
+            TokenKind::If => 12,
+            TokenKind::Else => 13,
+            TokenKind::While => 14,
+            TokenKind::Break => 15,
+            TokenKind::Continue => 16,
+            TokenKind::True => 17,
+            TokenKind::False => 18,
+            TokenKind::Arrow => 19,
+            TokenKind::Dot => 20,
+            TokenKind::Colon => 21,
+            TokenKind::Comma => 22,
+            TokenKind::Semicolon => 23,
+            TokenKind::LBracket => 24,
+            TokenKind::RBracket => 25,
+            TokenKind::LParen => 26,
+            TokenKind::RParen => 27,
+            TokenKind::LBrace => 28,
+            TokenKind::RBrace => 29,
+            TokenKind::Equal => 30,
+            TokenKind::FatArrow => 31,
+            TokenKind::Bang => 32,
+            TokenKind::Amp => 33,
+            TokenKind::EqualEqual => 34,
+            TokenKind::BangEqual => 35,
+            TokenKind::AndAnd => 36,
+            TokenKind::OrOr => 37,
+            TokenKind::Plus => 38,
+            TokenKind::Minus => 39,
+            TokenKind::Star => 40,
+            TokenKind::Slash => 41,
+            TokenKind::Less => 42,
+            TokenKind::LessEqual => 43,
+            TokenKind::Greater => 44,
+            TokenKind::GreaterEqual => 45,
+            TokenKind::Ident => 46,
+            TokenKind::Int => 47,
+            TokenKind::Str => 48,
+            TokenKind::Eof => 49,
+        }
     }
 
     fn unique_temp_dir(prefix: &str) -> PathBuf {

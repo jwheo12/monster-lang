@@ -1,19 +1,19 @@
-extern fn calloc(count: usize, size: usize) -> *u8;
-extern fn free(ptr: *u8) -> void;
+import "std/mem.mnst";
+import "std/str.mnst";
 
 fn main() -> i32 {
     let src: str = "Monster";
-    let len: usize = strlen(src);
-    let buf: *u8 = calloc(len + (1 as usize), sizeof(u8));
-    defer free(buf);
+    let len = str_len(src);
+    let buf = mem_calloc_u8(len + (1 as usize));
+    defer mem_free_u8(buf);
 
-    memcpy(buf, src as *u8, len + (1 as usize));
+    str_copy_to(buf, src);
 
-    if str_eq(src, buf as str) {
+    if str_equals(src, buf as str) {
         print_ln_str(buf as str);
     }
 
-    print_ln_i32(memcmp(buf, src as *u8, len));
+    print_ln_i32(mem_cmp(buf, src as *u8, len));
 
     return len as i32;
 }

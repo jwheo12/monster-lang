@@ -330,7 +330,7 @@ fn main() -> i32 {
 }
 ```
 
-The first small standard-library module lives at [`std/vec_i32.mnst`](./std/vec_i32.mnst). Imports under `std/` are resolved through `MST_STD_PATH`, the installed `share/mst/std` directory, and the compiler checkout's `std/` directory. See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that imports it, grows with `malloc` / `realloc` / `free`, and uses `defer` for cleanup. [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) shows the raw LLVM IR emitted by the current compiler.
+The first small standard-library modules live under [`std/`](./std): [`std/mem.mnst`](./std/mem.mnst) for byte-oriented allocation and memory helpers, [`std/str.mnst`](./std/str.mnst) for C-style string helpers, and [`std/vec_i32.mnst`](./std/vec_i32.mnst) for a concrete growable vector. Imports under `std/` are resolved through `MST_STD_PATH`, the installed `share/mst/std` directory, and the compiler checkout's `std/` directory. See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that imports it, grows with `malloc` / `realloc` / `free`, and uses `defer` for cleanup. [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) shows the raw LLVM IR emitted by the current compiler.
 
 Monster also supports file-based imports plus loop control. If you save this snippet at the repository root, it can import the checked-in helper at [`examples/imports/math.mnst`](./examples/imports/math.mnst):
 
@@ -411,6 +411,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - `cargo test`
 - LLVM IR verification and `-O2` optimization through `opt-18`
 - end-to-end LLVM build and run tests against `exam.mnst`
+- standard-library smoke checks for `std/mem.mnst`, `std/str.mnst`, and `std/vec_i32.mnst`
 - an end-to-end growable `VecI32` example using the early `std/vec_i32.mnst` module
 
 ## Example Program
@@ -420,13 +421,13 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - [`examples/constants.mnst`](./examples/constants.mnst): global `const` declarations for scalar and string values
 - [`examples/defer_scope.mnst`](./examples/defer_scope.mnst): scoped `defer` cleanup across block exit, `continue`, `break`, and `return`
 - [`examples/enum.mnst`](./examples/enum.mnst): payload-free enums and enum comparison
-- [`examples/file_io.mnst`](./examples/file_io.mnst): file reading and writing with `read_file` / `write_file`
+- [`examples/file_io.mnst`](./examples/file_io.mnst): file reading and writing with `read_file` / `write_file`, plus `std/mem.mnst` cleanup helpers
 - [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a growable vector example built on the early `std/vec_i32.mnst` module
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
 - [`examples/imports/main.mnst`](./examples/imports/main.mnst): aliased `import`, qualified module calls, and `break` / `continue`
 - [`examples/imports/math.mnst`](./examples/imports/math.mnst): imported helper module used by the loop-control example
 - [`examples/match.mnst`](./examples/match.mnst): payload enum matching with `Variant => expr` and `Variant(binding) => expr`
-- [`examples/string_bytes.mnst`](./examples/string_bytes.mnst): `strlen`, `memcmp`, `memcpy`, and `str_eq` against a copied C string buffer
+- [`examples/string_bytes.mnst`](./examples/string_bytes.mnst): `std/str.mnst` and `std/mem.mnst` helpers against a copied C string buffer
 
 ## Roadmap
 

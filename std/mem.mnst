@@ -1,0 +1,25 @@
+// Byte-oriented memory helpers.
+//
+// These wrappers keep C allocation and byte operations in one importable place.
+// More typed allocation helpers can be added as Monster grows.
+
+extern fn calloc(count: usize, size: usize) -> *u8;
+extern fn free(ptr: *u8) -> void;
+
+fn mem_calloc_u8(count: usize) -> *u8 {
+    return calloc(count, sizeof(u8));
+}
+
+fn mem_free_u8(ptr: *u8) -> void {
+    free(ptr);
+    return;
+}
+
+fn mem_copy(dst: *u8, src: *u8, len: usize) -> void {
+    memcpy(dst, src, len);
+    return;
+}
+
+fn mem_cmp(lhs: *u8, rhs: *u8, len: usize) -> i32 {
+    return memcmp(lhs, rhs, len);
+}

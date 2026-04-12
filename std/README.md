@@ -10,5 +10,9 @@ designing a large API up front.
 
 Current modules:
 
+- `mem.mnst`: byte-oriented allocation and memory helpers around `calloc`,
+  `free`, `memcpy`, and `memcmp`.
+- `str.mnst`: small C-style string helpers around `strlen`, `str_eq`, and
+  string-to-byte-buffer copying.
 - `vec_i32.mnst`: a concrete growable `VecI32` built with `malloc`, `realloc`,
   `free`, raw pointers, and `defer`-friendly cleanup.

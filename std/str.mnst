@@ -1,0 +1,18 @@
+// Small string helpers built on Monster's current C-style string builtins.
+
+fn str_len(value: str) -> usize {
+    return strlen(value);
+}
+
+fn str_is_empty(value: str) -> bool {
+    return str_len(value) == (0 as usize);
+}
+
+fn str_equals(lhs: str, rhs: str) -> bool {
+    return str_eq(lhs, rhs);
+}
+
+fn str_copy_to(dst: *u8, src: str) -> void {
+    memcpy(dst, src as *u8, str_len(src) + (1 as usize));
+    return;
+}

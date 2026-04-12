@@ -4,6 +4,7 @@ set -euo pipefail
 REPO="BitIntx/monster-lang"
 PREFIX="${PREFIX:-$HOME/.local}"
 BIN_DIR="${BIN_DIR:-$PREFIX/bin}"
+STD_DIR="${STD_DIR:-$(dirname "$BIN_DIR")/share/mst/std}"
 APT_LLVM_INSTALL_CMD="apt-get install -y clang-18 llvm-18 llvm-18-tools"
 
 need_cmd() {
@@ -223,6 +224,15 @@ tar -xzf "$TMP_DIR/$ASSET_NAME" -C "$TMP_DIR"
 
 mkdir -p "$BIN_DIR"
 install -m 755 "$TMP_DIR/$PACKAGE_DIR/mst" "$BIN_DIR/mst"
+
+if [[ -d "$TMP_DIR/$PACKAGE_DIR/std" ]]; then
+    rm -rf "$STD_DIR"
+    mkdir -p "$(dirname "$STD_DIR")"
+    cp -R "$TMP_DIR/$PACKAGE_DIR/std" "$STD_DIR"
+    echo "[mst] installed std to $STD_DIR"
+else
+    echo "[mst] warning: release package does not contain std/" >&2
+fi
 
 echo "[mst] installed to $BIN_DIR/mst"
 maybe_install_backend_tools

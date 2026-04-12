@@ -979,15 +979,7 @@ fn load_program_recursive(
     let mut visible_imported_functions = HashMap::new();
 
     for import in &parsed.imports {
-        let import_path = base_dir.join(&import.path);
-        let canonical_import = fs::canonicalize(&import_path).map_err(|e| {
-            format!(
-                "failed to resolve import '{}' from '{}': {}",
-                import.path,
-                path.display(),
-                e
-            )
-        })?;
+        let canonical_import = resolve_import_path(&import.path, base_dir, path)?;
 
         let child_namespace = match &import.alias {
             Some(_) => Some(module_name_for_path(&canonical_import, root_dir)?),
@@ -1046,6 +1038,111 @@ fn parse_program_from_file(path: &Path) -> Result<ast::Program, String> {
     parser
         .parse_program()
         .map_err(|e| format!("parser error in '{}': {e}", path.display()))
+}
+
+fn resolve_import_path(
+    import_path: &str,
+    base_dir: &Path,
+    importer: &Path,
+) -> Result<PathBuf, String> {
+    let relative_candidate = base_dir.join(import_path);
+    let mut searched = vec![relative_candidate.clone()];
+
+    if let Ok(canonical) = fs::canonicalize(&relative_candidate) {
+        return Ok(canonical);
+    }
+
+    if let Some(std_relative_path) = std_import_relative_path(import_path) {
+        for std_root in std_search_roots() {
+            let candidate = std_root.join(&std_relative_path);
+            searched.push(candidate.clone());
+
+            if let Ok(canonical) = fs::canonicalize(&candidate) {
+                return Ok(canonical);
+            }
+        }
+    }
+
+    let searched_paths = searched
+        .iter()
+        .map(|path| format!("'{}'", path.display()))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    Err(format!(
+        "failed to resolve import '{}' from '{}'; searched {}",
+        import_path,
+        importer.display(),
+        searched_paths
+    ))
+}
+
+fn std_import_relative_path(import_path: &str) -> Option<PathBuf> {
+    let mut components = Path::new(import_path).components();
+    let first = components.next()?;
+
+    if !matches!(
+        first,
+        std::path::Component::Normal(segment) if segment.to_str() == Some("std")
+    ) {
+        return None;
+    }
+
+    let relative = components.collect::<PathBuf>();
+    (!relative.as_os_str().is_empty()).then_some(relative)
+}
+
+fn std_search_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(paths) = env::var_os("MST_STD_PATH") {
+        for path in env::split_paths(&paths) {
+            push_unique_path(&mut roots, path);
+        }
+    }
+
+    if let Ok(exe) = env::current_exe() {
+        if let Some(bin_dir) = exe.parent() {
+            if let Some(prefix) = bin_dir.parent() {
+                push_unique_path(&mut roots, prefix.join("share").join("mst").join("std"));
+                push_unique_path(&mut roots, prefix.join("std"));
+            }
+
+            push_unique_path(&mut roots, bin_dir.join("std"));
+        }
+    }
+
+    push_unique_path(
+        &mut roots,
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("std"),
+    );
+
+    if let Some(home) = env::var_os("HOME") {
+        push_unique_path(
+            &mut roots,
+            PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("mst")
+                .join("std"),
+        );
+    }
+
+    push_unique_path(
+        &mut roots,
+        PathBuf::from("/usr/local")
+            .join("share")
+            .join("mst")
+            .join("std"),
+    );
+
+    roots
+}
+
+fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.iter().any(|existing| existing == &path) {
+        paths.push(path);
+    }
 }
 
 fn empty_program() -> ast::Program {
@@ -1899,6 +1996,49 @@ mod tests {
 
         assert!(function_names.contains(&"lib.math.helper".to_string()));
         assert!(function_names.contains(&"lib.math.add".to_string()));
+        assert!(function_names.contains(&"main".to_string()));
+
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn loads_std_imports_from_compiler_std_dir() {
+        let temp_dir = unique_temp_dir("monster-std-imports");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        fs::write(
+            temp_dir.join("main.mnst"),
+            r#"
+            import "std/vec_i32.mnst";
+
+            fn main() -> i32 {
+                let mut vec = vec_i32_new();
+                defer vec_i32_free(vec);
+
+                vec_i32_push(&vec, 7);
+                return vec_i32_get(vec, 0);
+            }
+            "#,
+        )
+        .unwrap();
+
+        let program = load_program(temp_dir.join("main.mnst").to_str().unwrap()).unwrap();
+        let function_names = program
+            .functions
+            .iter()
+            .map(|function| function.name.clone())
+            .collect::<Vec<_>>();
+        let struct_names = program
+            .structs
+            .iter()
+            .map(|struct_def| struct_def.name.clone())
+            .collect::<Vec<_>>();
+
+        assert!(struct_names.contains(&"VecI32".to_string()));
+        assert!(function_names.contains(&"vec_i32_new".to_string()));
+        assert!(function_names.contains(&"vec_i32_push".to_string()));
+        assert!(function_names.contains(&"vec_i32_get".to_string()));
+        assert!(function_names.contains(&"vec_i32_free".to_string()));
         assert!(function_names.contains(&"main".to_string()));
 
         fs::remove_dir_all(temp_dir).unwrap();

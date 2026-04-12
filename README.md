@@ -72,6 +72,7 @@ irm https://raw.githubusercontent.com/BitIntx/monster-lang/main/install/install-
 The release installer currently supports Linux x86_64, Linux ARM64, macOS x86_64, macOS arm64, and Windows x86_64.
 The recommended Linux/macOS install path is `/usr/local/bin` via `PREFIX=/usr/local`; without `sudo`, the installer uses `~/.local/bin`.
 On Windows it installs `mst.exe` into `%LOCALAPPDATA%\Programs\mst\bin` and adds that directory to the user `PATH`.
+Release and source installers also install the bundled standard library to the matching `share/mst/std` directory.
 For `mst build` and `mst run`, you still need `clang-18` or `clang`, and `opt-18` or `opt` on your `PATH`.
 
 Install from source instead:
@@ -329,7 +330,7 @@ fn main() -> i32 {
 }
 ```
 
-The first small standard-library module lives at [`std/vec_i32.mnst`](./std/vec_i32.mnst). See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that imports it, grows with `malloc` / `realloc` / `free`, and uses `defer` for cleanup. [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) shows the raw LLVM IR emitted by the current compiler.
+The first small standard-library module lives at [`std/vec_i32.mnst`](./std/vec_i32.mnst). Imports under `std/` are resolved through `MST_STD_PATH`, the installed `share/mst/std` directory, and the compiler checkout's `std/` directory. See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that imports it, grows with `malloc` / `realloc` / `free`, and uses `defer` for cleanup. [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) shows the raw LLVM IR emitted by the current compiler.
 
 Monster also supports file-based imports plus loop control. If you save this snippet at the repository root, it can import the checked-in helper at [`examples/imports/math.mnst`](./examples/imports/math.mnst):
 

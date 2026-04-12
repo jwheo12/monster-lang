@@ -1,7 +1,7 @@
 // A manual growable vector using the first small std module.
 // Monster does not have generics yet, so std currently exposes a concrete VecI32.
 
-import "../std/vec_i32.mnst";
+import "std/vec_i32.mnst";
 
 fn main() -> i32 {
     let mut vec = vec_i32_new();

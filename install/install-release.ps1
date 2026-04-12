@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 $Repo = "BitIntx/monster-lang"
 $Version = if ($env:MST_VERSION) { $env:MST_VERSION } else { $null }
 $InstallDir = if ($env:MST_INSTALL_DIR) { $env:MST_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "Programs\mst\bin" }
+$InstallRoot = Split-Path -Parent $InstallDir
+$StdDir = if ($env:MST_STD_DIR) { $env:MST_STD_DIR } else { Join-Path $InstallRoot "share\mst\std" }
 
 function Get-LatestVersion {
     $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases"
@@ -73,6 +75,19 @@ try {
     Copy-Item -Path (Join-Path $TempDir $PackageDir "mst.exe") -Destination (Join-Path $InstallDir "mst.exe") -Force
 
     Write-Host "[mst] installed to $(Join-Path $InstallDir 'mst.exe')"
+
+    $SourceStd = Join-Path (Join-Path $TempDir $PackageDir) "std"
+    if (Test-Path $SourceStd) {
+        if (Test-Path $StdDir) {
+            Remove-Item -Path $StdDir -Recurse -Force
+        }
+
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $StdDir) | Out-Null
+        Copy-Item -Path $SourceStd -Destination $StdDir -Recurse -Force
+        Write-Host "[mst] installed std to $StdDir"
+    } else {
+        Write-Warning "Release package does not contain std/."
+    }
 
     if (-not (Test-BackendTools)) {
         Show-BackendToolHelp

@@ -85,6 +85,7 @@ jobs:
           mkdir -p "$stage"
           cp "target/$TARGET/release/mst" "$stage/"
           cp README.md LICENSE "$stage/"
+          cp -R std "$stage/"
 
           archive="$RUNNER_TEMP/${package}.tar.gz"
           tar -C "$RUNNER_TEMP" -czf "$archive" "$package"
@@ -107,6 +108,7 @@ jobs:
           Copy-Item "target\$env:TARGET\release\mst.exe" -Destination $Stage
           Copy-Item README.md -Destination $Stage
           Copy-Item LICENSE -Destination $Stage
+          Copy-Item std -Destination $Stage -Recurse
 
           $Archive = Join-Path $env:RUNNER_TEMP "$Package.zip"
           Compress-Archive -Path $Stage -DestinationPath $Archive -Force

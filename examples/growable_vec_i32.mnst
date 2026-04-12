@@ -1,48 +1,10 @@
-// A manual growable vector built with raw pointers and libc allocation.
-// Monster does not have generics yet, so this example uses a concrete VecI32.
+// A manual growable vector using the first small std module.
+// Monster does not have generics yet, so std currently exposes a concrete VecI32.
 
-struct VecI32 {
-    data: *i32,
-    len: i32,
-    cap: i32,
-}
-
-extern fn malloc(size: i32) -> *i32;
-extern fn realloc(ptr: *i32, size: i32) -> *i32;
-extern fn free(ptr: *i32) -> void;
-
-fn vec_i32_new() -> VecI32 {
-    return VecI32 { data: malloc(4 * 4), len: 0, cap: 4 };
-}
-
-fn vec_i32_push(vec: *VecI32, value: i32) -> void {
-    let mut current: VecI32 = *vec;
-
-    if current.len == current.cap {
-        let new_cap: i32 = current.cap * 2;
-        current.data = realloc(current.data, new_cap * 4);
-        current.cap = new_cap;
-    }
-
-    let mut data: *i32 = current.data;
-    data[current.len] = value;
-    current.len = current.len + 1;
-
-    *vec = current;
-    return;
-}
-
-fn vec_i32_get(vec: VecI32, index: i32) -> i32 {
-    return vec.data[index];
-}
-
-fn vec_i32_free(vec: VecI32) -> void {
-    free(vec.data);
-    return;
-}
+import "../std/vec_i32.mnst";
 
 fn main() -> i32 {
-    let mut vec: VecI32 = vec_i32_new();
+    let mut vec = vec_i32_new();
     defer vec_i32_free(vec);
 
     vec_i32_push(&vec, 10);
@@ -55,6 +17,6 @@ fn main() -> i32 {
     print_ln_i32(vec_i32_get(vec, 0));
     print_ln_i32(vec_i32_get(vec, 4));
 
-    let result: i32 = vec_i32_get(vec, 0) + vec_i32_get(vec, 4);
+    let result = vec_i32_get(vec, 0) + vec_i32_get(vec, 4);
     return result;
 }

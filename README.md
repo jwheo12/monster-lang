@@ -318,18 +318,18 @@ fn main() -> i32 {
 Monster can already express a manual growable vector with libc allocation:
 
 ```mnst
-struct VecI32 {
-    data: *i32,
-    len: i32,
-    cap: i32,
-}
+import "std/vec_i32.mnst";
 
-extern fn malloc(size: i32) -> *i32;
-extern fn realloc(ptr: *i32, size: i32) -> *i32;
-extern fn free(ptr: *i32) -> void;
+fn main() -> i32 {
+    let mut vec = vec_i32_new();
+    defer vec_i32_free(vec);
+
+    vec_i32_push(&vec, 10);
+    return vec_i32_get(vec, 0);
+}
 ```
 
-See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that grows with `malloc` / `realloc` / `free` and uses `defer` for cleanup, and [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) for the raw LLVM IR emitted by the current compiler.
+The first small standard-library module lives at [`std/vec_i32.mnst`](./std/vec_i32.mnst). See [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst) for a full `VecI32` example that imports it, grows with `malloc` / `realloc` / `free`, and uses `defer` for cleanup. [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll) shows the raw LLVM IR emitted by the current compiler.
 
 Monster also supports file-based imports plus loop control. If you save this snippet at the repository root, it can import the checked-in helper at [`examples/imports/math.mnst`](./examples/imports/math.mnst):
 
@@ -410,7 +410,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - `cargo test`
 - LLVM IR verification and `-O2` optimization through `opt-18`
 - end-to-end LLVM build and run tests against `exam.mnst`
-- an end-to-end growable `VecI32` example using `malloc` / `realloc` / `free`
+- an end-to-end growable `VecI32` example using the early `std/vec_i32.mnst` module
 
 ## Example Program
 
@@ -420,7 +420,7 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 - [`examples/defer_scope.mnst`](./examples/defer_scope.mnst): scoped `defer` cleanup across block exit, `continue`, `break`, and `return`
 - [`examples/enum.mnst`](./examples/enum.mnst): payload-free enums and enum comparison
 - [`examples/file_io.mnst`](./examples/file_io.mnst): file reading and writing with `read_file` / `write_file`
-- [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a manual growable vector built with raw pointers and libc allocation
+- [`examples/growable_vec_i32.mnst`](./examples/growable_vec_i32.mnst): a growable vector example built on the early `std/vec_i32.mnst` module
 - [`examples/growable_vec_i32.ll`](./examples/growable_vec_i32.ll): the raw LLVM IR generated from the growable `VecI32` example
 - [`examples/imports/main.mnst`](./examples/imports/main.mnst): aliased `import`, qualified module calls, and `break` / `continue`
 - [`examples/imports/math.mnst`](./examples/imports/math.mnst): imported helper module used by the loop-control example
@@ -432,8 +432,8 @@ GitHub Actions runs the compiler on `ubuntu-latest` and checks:
 Near-term goals:
 
 - namespaced types and broader module imports beyond function-level aliasing
-- more complete libc and memory utilities
-- growable vectors beyond the current manual `VecI32` pattern
+- more complete libc and memory utilities in `std/`
+- growable vectors beyond the current concrete `VecI32` pattern
 - `sizeof`-driven allocation patterns for self-hosting data structures
 - better diagnostics with source snippets
 - stronger semantic analysis and type checking

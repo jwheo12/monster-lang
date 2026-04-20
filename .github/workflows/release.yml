@@ -117,7 +117,7 @@ jobs:
           "$Hash  $(Split-Path -Leaf $Archive)" | Set-Content -Path "$Archive.sha256" -NoNewline
 
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset_os }}-${{ matrix.asset_arch }}
           path: |
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download packaged assets
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: dist
 
